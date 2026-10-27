@@ -18,11 +18,12 @@
     query: "",
     mode: "all",
     timeKey: null,
-    plan: { from: null, to: null },
+    plan: { from: null, to: null, walk: null },
     current: null,
     locating: false,
     locateTimer: null,
     lastFix: null,
+    locateTarget: null,
     timeKeyRoute: null
   };
 
@@ -101,7 +102,10 @@
 
   function setTab(tab) {
     document.querySelectorAll(".tab").forEach(function (a) {
-      a.classList.toggle("active", a.dataset.tab === tab);
+      var active = a.dataset.tab === tab;
+      a.classList.toggle("active", active);
+      if (active) a.setAttribute("aria-current", "page");
+      else a.removeAttribute("aria-current");
     });
   }
 
@@ -409,12 +413,36 @@
     state.locating = false;
     stopLocateTimer();
     U.toast(message || "Konum alınamadı. Konum iznini kontrol edin.", "error");
+    if (state.locateTarget === "plan") {
+      state.locateTarget = null;
+      return;
+    }
     var box = document.getElementById("nearbyBox");
     if (box && !state.lastFix) box.innerHTML = nearbyIntro();
   }
 
-  function locate() {
+  function setPlanFromFix(lat, lon) {
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+      U.toast("Konum alınamadı", "error");
+      return;
+    }
+    var near = D.nearbyStops(lat, lon, 1, 5000)[0];
+    if (!near) {
+      U.toast("5 km içinde durak bulunamadı.", "error");
+      return;
+    }
+    state.plan.from = { id: near.id, name: near.name };
+    state.plan.walk = near.dist;
+    var input = document.getElementById("fromInput");
+    if (input) input.value = near.name;
+    var results = document.getElementById("planResults");
+    if (results) results.innerHTML = planResults();
+    U.toast("En yakın durak seçildi: " + near.name);
+  }
+
+  function locate(target) {
     state.locating = true;
+    state.locateTarget = target || "home";
     stopLocateTimer();
     var box = document.getElementById("nearbyBox");
     if (box) box.innerHTML = '<div class="loading">' + U.icon("locate") + " Konum alınıyor…</div>";
@@ -442,8 +470,9 @@
   function planField(field, label, iconName, value, placeholder) {
     return '<div class="field"><label for="' + field + 'Input">' + U.icon(iconName) + label + "</label>" +
       '<div class="ac-wrap"><input id="' + field + 'Input" data-ac="' + field + '" autocomplete="off" ' +
+      'role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="' + field + 'Sug" ' +
       'placeholder="' + placeholder + '" value="' + U.esc(value || "") + '">' +
-      '<div class="suggest" id="' + field + 'Sug" hidden></div></div></div>';
+      '<div class="suggest" id="' + field + 'Sug" role="listbox" hidden></div></div></div>';
   }
 
   function planResults() {
@@ -456,7 +485,9 @@
     if (from.id === to.id) return '<div class="empty">Kalkış ve varış aynı durak.</div>';
 
     var plan = D.plan(from.id, to.id);
-    var html = '<div class="plan-summary">' + U.esc(from.name) + " → " + U.esc(to.name) + "</div>";
+    var html = '<div class="plan-summary">' + U.esc(from.name) +
+      (state.plan.walk ? ' <span class="muted">(konumdan ~' + Math.round(state.plan.walk) + " m)</span>" : "") +
+      " → " + U.esc(to.name) + "</div>";
 
     if (!plan.direct.length && !plan.transfers.length) {
       return html + '<div class="empty">Bu iki durak arasında uygun hat bulunamadı.<br><small>Daha yakın bir durak seçmeyi deneyin.</small></div>';
@@ -475,7 +506,7 @@
     if (!plan.direct.length) {
       html += '<div class="notice">Doğrudan hat yok; sonuçlar tek aktarmalı seçeneklerdir.</div>';
     }
-    html += '<p class="hint">Süreler yaklaşık seyahat süresidir; bekleme ve yürüme dahil değildir.</p>';
+    html += '<p class="hint">Süreler yaklaşıktır. Varış saati "şimdi çıksan" varsayımıyla hesaplanır; bekleme ve yürüme süreleri tahminidir.</p>';
     return html;
   }
 
@@ -490,6 +521,8 @@
     view.innerHTML = '<div class="page plan">' +
       '<div class="card plan-form">' +
       planField("from", "Nereden", "pin", state.plan.from && state.plan.from.name, "Kalkış durağı ara") +
+      '<button class="btn ghost sm plan-locate" data-action="plan-locate">' + U.icon("locate") +
+      " Konumumu kullan</button>" +
       '<button class="swap-btn" data-action="swap" aria-label="Yönleri değiştir">' + U.icon("swap") + "</button>" +
       planField("to", "Nereye", "pin", state.plan.to && state.plan.to.name, "Varış durağı ara") +
       '<button class="btn primary" data-action="plan-submit">' + U.icon("search") + " Yolculuk ara</button>" +
@@ -517,9 +550,11 @@
         return '<button class="day-tab ' + (key === d[0] ? "active" : "") + '" data-action="day" data-key="' +
           d[0] + '">' + d[1] + "</button>";
       }).join("") + "</div>" +
-      '<div class="time-grid">' + (dep.length ? dep.map(function (t, i) {
-        return '<span class="time ' + (i === nextIndex ? "next" : "") + '">' +
-          window.AdanaTime.displayTime(t) + "</span>";
+      '<div class="time-grid" role="list">' + (dep.length ? dep.map(function (t, i) {
+        var next = i === nextIndex;
+        return '<span class="time ' + (next ? "next" : "") + '" role="listitem"' +
+          (next ? ' aria-current="time" aria-label="Sıradaki sefer ' + window.AdanaTime.displayTime(t) + '"' : "") +
+          ">" + window.AdanaTime.displayTime(t) + "</span>";
       }).join("") : '<p class="empty">Bu gün için sefer bilgisi yok.</p>') + "</div>" +
       '<p class="hint">' + (dir.dataLevel === "full"
         ? "Saatler hattın ilk durağından kalkış saatleridir. Sonraki duraklar için aşağıdaki süreleri ekleyin."
@@ -628,6 +663,21 @@
       '<p class="operator">' + U.esc(route.operator) + "</p></div>";
   }
 
+  function shareText(type, id) {
+    if (type === "route") {
+      var route = D.route(id);
+      if (!route) return "";
+      var dir = route.dirs[0];
+      var origin = dir && dir.stops.length ? D.stopName(dir.stops[0]) : null;
+      return route.code + " · " + route.name + (origin ? " — Kalkış: " + origin : "") +
+        " · Adana Hat Rehberi";
+    }
+    if (type === "stop") {
+      return D.stopName(id) + " durağı · Adana Hat Rehberi";
+    }
+    return "";
+  }
+
   function renderRoute(route) {
     var r = D.route(route.id);
     if (!r) { renderNotFound("Hat bulunamadı"); return; }
@@ -708,7 +758,8 @@
     if (dir && dir.shape && dir.shape.length > 1) {
       body += '<div class="card map-card"><div class="map-toolbar"><h3>Güzergah</h3>' +
         '<button class="map-toggle" data-action="tiles">Sokak haritası</button></div>' +
-        '<div id="routeMap" class="map"></div></div>';
+        '<div id="routeMap" class="map" role="img" aria-label="' + U.esc(r.code) +
+        ' hattı güzergah haritası"></div></div>';
     }
 
     if (dir && dir.stops.length) {
@@ -716,6 +767,8 @@
       body += stopsTimeline(dir);
     }
 
+    body += '<button class="btn ghost wide" data-action="share" data-type="route" data-id="' +
+      U.esc(r.id) + '">' + U.icon("transfer") + " Hattı paylaş</button>";
     body += freshnessBanner();
     body += sourceNote();
     view.innerHTML = '<div class="page detail-page">' + body + "</div>";
@@ -783,7 +836,8 @@
 
     body += '<div class="card map-card"><div class="map-toolbar"><h3>Konum</h3>' +
       '<button class="map-toggle" data-action="tiles">Sokak haritası</button></div>' +
-      '<div id="stopMap" class="map map-sm"></div></div>';
+      '<div id="stopMap" class="map map-sm" role="img" aria-label="' +
+      U.esc(stop[0]) + ' konum haritası"></div></div>';
 
     body += '<div class="card"><div class="card-head"><h3>Bu duraktan geçen hatlar</h3></div>' +
       '<div class="line-groups">' + groups.map(function (group) {
@@ -798,6 +852,8 @@
 
     body += '<button class="btn primary wide" data-action="plan-from" data-id="' + U.esc(route.id) + '">' +
       U.icon("plan") + " Buradan yolculuk planla</button>";
+    body += '<button class="btn ghost wide" data-action="share" data-type="stop" data-id="' +
+      U.esc(route.id) + '">' + U.icon("transfer") + " Durağı paylaş</button>";
 
     if (nearby.length) {
       body += '<section class="block"><div class="block-head"><h3>Yakın duraklar</h3></div><div class="stop-list">' +
@@ -916,16 +972,22 @@
     var box = document.getElementById(field + "Sug");
     if (!box) return;
     var q = input.value.trim();
-    if (q.length < 2) { box.hidden = true; box.innerHTML = ""; return; }
+    if (q.length < 2) {
+      box.hidden = true;
+      box.innerHTML = "";
+      input.setAttribute("aria-expanded", "false");
+      return;
+    }
     var stops = D.searchStops(q, 8);
     box.innerHTML = stops.length ? stops.map(function (s) {
       var codes = stopCodes(s.id, 4);
       var meta = codes.length ? codes.join(" · ") : ((D.linesAt(s.id) || []).length + " hat");
       return '<button class="sug-item" data-action="pick-stop" data-field="' + field + '" data-id="' +
-        U.esc(s.id) + '"><span class="sug-name">' + U.esc(s.name) + '</span><span class="sug-meta">' +
+        U.esc(s.id) + '" role="option" aria-selected="false"><span class="sug-name">' + U.esc(s.name) + '</span><span class="sug-meta">' +
         U.esc(meta) + (s.kind === 1 ? " · metro" : "") + "</span></button>";
     }).join("") : '<div class="sug-empty">Durak bulunamadı</div>';
     box.hidden = false;
+    input.setAttribute("aria-expanded", "true");
   }, 110);
 
   view.addEventListener("input", function (e) {
@@ -938,12 +1000,36 @@
   });
 
   view.addEventListener("keydown", function (e) {
+    if (e.target.dataset && e.target.dataset.ac) {
+      var box = document.getElementById(e.target.dataset.ac + "Sug");
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        if (!box || box.hidden) return;
+        var items = box.querySelectorAll(".sug-item");
+        if (!items.length) return;
+        var at = Array.prototype.indexOf.call(items, document.activeElement);
+        var next = e.key === "ArrowDown" ? Math.min(items.length - 1, at + 1) : Math.max(0, at - 1);
+        items[next].focus();
+        return;
+      }
+      if (e.key === "Escape") {
+        if (box) box.hidden = true;
+        e.target.setAttribute("aria-expanded", "false");
+        return;
+      }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        var first = box && !box.hidden ? box.querySelector(".sug-item") : null;
+        if (first) first.click();
+        return;
+      }
+      return;
+    }
     if (e.key !== "Enter") return;
     if (e.target.id === "searchInput") {
       var routes = D.searchRoutes(state.query, state.mode, 2);
       if (routes.length === 1) go("#/route/" + encodeURIComponent(routes[0].id));
     }
-    if (e.target.dataset && e.target.dataset.ac) e.preventDefault();
   });
 
   view.addEventListener("click", function (e) {
@@ -967,21 +1053,28 @@
       renderHome(true);
     } else if (action === "locate") {
       e.preventDefault();
-      locate();
+      locate("home");
+    } else if (action === "plan-locate") {
+      e.preventDefault();
+      locate("plan");
     } else if (action === "pick-stop") {
       e.preventDefault();
       var field = btn.dataset.field;
       var id = btn.dataset.id;
       state.plan[field] = { id: id, name: D.stopName(id) };
+      if (field === "from") state.plan.walk = null;
       var fieldInput = document.getElementById(field + "Input");
       if (fieldInput) fieldInput.value = D.stopName(id);
       var box = document.getElementById(field + "Sug");
       if (box) box.hidden = true;
+      var combo = document.getElementById(field + "Input");
+      if (combo) combo.setAttribute("aria-expanded", "false");
     } else if (action === "swap") {
       e.preventDefault();
       var from = state.plan.from;
       state.plan.from = state.plan.to;
       state.plan.to = from;
+      state.plan.walk = null;
       var suffix = (state.plan.from && state.plan.to) ?
         "/" + encodeURIComponent(state.plan.from.id) + "/" + encodeURIComponent(state.plan.to.id) : "";
       go("#/plan" + suffix);
@@ -1002,6 +1095,18 @@
         var statsEl = document.getElementById("statsCard");
         if (statsEl) statsEl.outerHTML = statsCard(route, dir);
       }
+    } else if (action === "share") {
+      e.preventDefault();
+      var text = shareText(btn.dataset.type, btn.dataset.id);
+      if (!text) return;
+      if (window.AndroidBridge && window.AndroidBridge.share) {
+        try { window.AndroidBridge.share(text); return; } catch (err) {}
+      }
+      if (navigator.share) {
+        navigator.share({ text: text }).catch(function () {});
+        return;
+      }
+      U.toast("Bu cihazda paylaşım desteklenmiyor");
     } else if (action === "tiles") {
       e.preventDefault();
       window.MapView.toggleTiles(btn);
@@ -1035,6 +1140,12 @@
   window.onNativeLocation = function (lat, lon) {
     state.locating = false;
     stopLocateTimer();
+    var target = state.locateTarget;
+    state.locateTarget = null;
+    if (target === "plan") {
+      setPlanFromFix(Number(lat), Number(lon));
+      return;
+    }
     showNearby(Number(lat), Number(lon));
   };
   window.onNativeLocationError = function (message) {

@@ -129,7 +129,7 @@ düzeltmek.
      merge). Eşikler: `routes ≥ 150`, `stops ≥ 3000`, `directions ≥ 300`.
    - Mobility Database `mdb-3407` ikinci kaynak olarak kullanılsın.
 
-## Faz 2 — Kullanıcı akışı ve erişilebilirlik (≈3 hafta)
+## Faz 2 — Kullanıcı akışı ve erişilebilirlik (≈3 hafta) — ÇEKİRDEK TAMAM (build 8)
 
 1. **Konumdan hedefe yolculuk** (U-01)
    - Plan formuna "Konumumu kullan" butonu; en yakın durağı otomatik seç;
@@ -153,6 +153,12 @@ düzeltmek.
      güvenli origin; `fetch` ve service worker yolu açılır.
 6. **Paylaşım / deep link** (U-03): `ACTION_SEND`, `adanahat://` + App Links,
    favori dışa aktarma.
+
+### Faz 2'den Faz 3'e ertelenenler
+- `targetSdk 36` + zorunlu edge-to-edge (AGP/Gradle yükseltmesi riskli).
+- `WebViewAssetLoader` + CSP (güvenli origin; fetch/lazy-load ve sw.js için).
+- App Links / deep link ve widget.
+- Tam WCAG denetimi (TalkBack turu, 200 % yazı boyutu cihaz testi).
 
 ## Faz 3 — Yayın ve otomasyon (≈1-2 ay)
 

@@ -109,6 +109,14 @@ Gradle 8.7 + aapt2 override gerekir). **Birincil yol CI.**
       24:00+ seferler (ertesi gün işaretli), Europe/Istanbul sabit saat dilimi,
       duyurular (63 kayıt, hat bazlı), hat bazlı ücret kartı, dolmuş operatör
       etiketi düzeltmesi, `fetch_sources.py` + aylık `data.yml` PR akışı.
+- [x] Faz 2 (build 8): yolculuk kartlarında tahmini varış saati, plan formunda
+      "Konumumu kullan" (en yakın durak + mesafe), sistem yazı ölçeği, combobox
+      ARIA/klavye, sekme `aria-current`, harita metin etiketi, singleTask,
+      predictive back (`OnBackPressedDispatcher`), paylaşım köprüsü,
+      `allowContentAccess=false`, asset dışı `file://` engeli, `JSONObject.quote`,
+      yedekleme kuralları (WebView verisi buluta gitmiyor), debug'da log.
+      Ertelenen: targetSdk 36 + edge-to-edge, WebViewAssetLoader + CSP,
+      App Links/deep link, widget.
 - [ ] İleride: GTFS yenileme (2026-11-30 sonrası), dolmuş attribution
       düzeltmeleri, cep durak katkısı, canlı araç konumu (opsiyonel, KVKK:
       plaka verisi saklanmamalı). Aktarma araması hâlâ durak ID eşitliğine

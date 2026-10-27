@@ -85,6 +85,12 @@
       icon("chevron", "chev") + "</a>";
   }
 
+  function arrivalClock(mins) {
+    var now = global.AdanaTime.now();
+    var total = now.getHours() * 60 + now.getMinutes() + (mins || 0);
+    return global.AdanaTime.displayTime(global.AdanaTime.timeOf(total));
+  }
+
   function stopLink(id, name) {
     return '<a class="stop-link" href="#/stop/' + encodeURIComponent(id) + '">' + esc(name) + "</a>";
   }
@@ -101,7 +107,8 @@
       '<div class="j-meta">' + icon("pin", "ic-xs") + " Bin: " + stopLink(fromId, global.AdanaData.stopName(fromId)) +
       " · İn: " + stopLink(toId, global.AdanaData.stopName(toId)) +
       (item.toWalk ? " · ~" + item.toWalk + " m yürü" : "") +
-      " · " + item.stops + " durak · ~" + item.wait + " dk bekleme</div>" +
+      " · " + item.stops + " durak · ~" + item.wait + " dk bekleme" +
+      " · ≈ varış " + arrivalClock(item.mins + item.wait) + "</div>" +
       "</div></div>";
   }
 
@@ -129,7 +136,8 @@
       "</strong><small>Yön: " + esc(item.second.dir.heads) + "</small></div></div>" +
       '<div class="j-meta">' + icon("pin", "ic-xs") + " Bin: " + stopLink(boardId, boardName) +
       " → İn: " + stopLink(toId, toName) +
-      (item.second.toWalk ? " · ~" + item.second.toWalk + " m yürü" : "") + "</div>" +
+      (item.second.toWalk ? " · ~" + item.second.toWalk + " m yürü" : "") +
+      " · ≈ varış " + arrivalClock(item.mins) + "</div>" +
       "</div></div>";
   }
 

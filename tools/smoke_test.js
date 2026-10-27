@@ -130,6 +130,7 @@ ok(!!boardCard && boardCard.textContent.indexOf("Kalkış durağı") >= 0, "kalk
 ok(!!boardCard && boardCard.textContent.indexOf("Varış durağı") >= 0, "varış durağı bilgisi gösterildi");
 ok(!!document.querySelector(".stop-tag.tag-start"), "ilk durak kalkış olarak işaretlendi");
 ok(!!document.querySelector(".fare-mini"), "hat ücreti gösterildi");
+ok(!!document.querySelector('[data-action="share"][data-type="route"]'), "hat paylaşım düğmesi var");
 document.querySelector('.day-tab[data-key="su"]').click();
 ok(document.querySelectorAll(".time").length === 0, "pazar günü sefer yok uyarısı");
 ok(!document.querySelector(".stats-grid"), "pazar günü sahte istatistik gösterilmiyor");
@@ -159,6 +160,8 @@ const to = dir.stops[dir.stops.length - 3];
 navigate("#/plan/" + from + "/" + to);
 ok(document.getElementById("planResults").textContent.indexOf("Aktarmasız") >= 0, "aktarmasız plan sonucu");
 ok(document.querySelectorAll(".journey").length > 0, "yolculuk kartları render edildi");
+ok(document.getElementById("planResults").textContent.indexOf("varış") >= 0, "tahmini varış saati gösterildi");
+ok(document.querySelector('.tab[data-tab="plan"]').getAttribute("aria-current") === "page", "aktif sekme aria-current taşıyor");
 
 navigate("#/route/00114/0");
 document.getElementById("topAction").click();
@@ -199,6 +202,15 @@ const planTab = document.querySelector('.tab[data-tab="plan"]');
 ok(!!planTab && planTab.getAttribute("href") === "#/plan", "plan sekmesi bağlantısı");
 navigate("#/plan");
 ok(document.getElementById("fromInput") && document.getElementById("toInput"), "plan sekmesi formu");
+ok(!!document.querySelector('[data-action="plan-locate"]'), "konumdan plan butonu var");
+const fromField = document.getElementById("fromInput");
+ok(fromField.getAttribute("role") === "combobox" && fromField.getAttribute("aria-expanded") === "false",
+  "durak arama kutusu combobox semantiğinde");
+input(fromField, "küçük");
+await wait(170);
+ok(document.querySelectorAll('#fromSug .sug-item[role="option"]').length > 0, "öneriler listbox/option olarak işaretli");
+document.querySelector('[data-action="plan-locate"]').click();
+ok(document.getElementById("fromInput").value.length > 0, "konumdan en yakın durak seçildi");
 ok(document.querySelectorAll('.tabbar .tab').length === 4, "alt menü dört sekme");
 
 navTest();

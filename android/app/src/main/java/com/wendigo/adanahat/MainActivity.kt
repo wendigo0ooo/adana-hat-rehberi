@@ -21,6 +21,7 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -63,13 +64,13 @@ class MainActivity : AppCompatActivity() {
             javaScriptEnabled = true
             domStorageEnabled = true
             allowFileAccess = true
-            allowContentAccess = true
+            allowContentAccess = false
             setGeolocationEnabled(true)
             useWideViewPort = true
             loadWithOverviewMode = false
             builtInZoomControls = false
             displayZoomControls = false
-            textZoom = 100
+            textZoom = (resources.configuration.fontScale * 100).toInt().coerceIn(100, 200)
             mediaPlaybackRequiresUserGesture = true
             cacheMode = WebSettings.LOAD_DEFAULT
         }
@@ -78,7 +79,7 @@ class MainActivity : AppCompatActivity() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val url: Uri = request.url
                 return when (url.scheme) {
-                    "file" -> false
+                    "file" -> !url.toString().startsWith("file:///android_asset/")
                     "http", "https" -> {
                         startActivity(Intent(Intent.ACTION_VIEW, url))
                         true
@@ -106,7 +107,9 @@ class MainActivity : AppCompatActivity() {
 
         webView.webChromeClient = object : WebChromeClient() {
             override fun onConsoleMessage(message: ConsoleMessage): Boolean {
-                Log.d("AdanaJS", "${message.message()} (${message.sourceId()}:${message.lineNumber()})")
+                if (BuildConfig.DEBUG) {
+                    Log.d("AdanaJS", "${message.message()} (${message.sourceId()}:${message.lineNumber()})")
+                }
                 return true
             }
 
@@ -125,8 +128,20 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        if (BuildConfig.DEBUG) WebView.setWebContentsDebuggingEnabled(true)
         webView.addJavascriptInterface(Bridge(), "AndroidBridge")
         webView.loadUrl("file:///android_asset/index.html")
+
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (webView.canGoBack()) {
+                    webView.goBack()
+                } else {
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                }
+            }
+        })
     }
 
     private fun hasLocationPermission(): Boolean {
@@ -245,9 +260,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun notifyJsError(message: String) {
-        val safe = message.replace("'", " ")
+        val safe = org.json.JSONObject.quote(message)
         webView.evaluateJavascript(
-            "window.onNativeLocationError && window.onNativeLocationError('$safe')",
+            "window.onNativeLocationError && window.onNativeLocationError($safe)",
             null
         )
     }
@@ -257,11 +272,17 @@ class MainActivity : AppCompatActivity() {
         fun requestLocation() {
             runOnUiThread { startLocationUpdates() }
         }
-    }
 
-    @Deprecated("Deprecated in Java")
-    override fun onBackPressed() {
-        if (webView.canGoBack()) webView.goBack() else super.onBackPressed()
+        @JavascriptInterface
+        fun share(text: String) {
+            runOnUiThread {
+                val intent = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_TEXT, text)
+                }
+                startActivity(Intent.createChooser(intent, "Paylaş"))
+            }
+        }
     }
 
     override fun onPause() {

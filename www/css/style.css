@@ -819,3 +819,6 @@ body.detail .toast { bottom: calc(24px + env(safe-area-inset-bottom, 0px)); }
 .fare-cell { background: var(--bg2); border-radius: 10px; padding: 8px 10px; }
 .fare-cell span { display: block; font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
 .fare-cell strong { font-size: 15px; font-variant-numeric: tabular-nums; }
+
+.plan-locate { align-self: flex-start; }
+.plan-summary .muted { font-size: 11px; font-weight: 500; }
