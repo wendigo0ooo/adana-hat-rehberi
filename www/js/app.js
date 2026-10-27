@@ -949,9 +949,16 @@
       U.esc(meta.disclaimer || "") + "</p>" +
       (meta.limitedNote ? '<p class="legal">' + U.esc(meta.limitedNote) + "</p>" : "") +
       '<a class="btn ghost wide" href="https://ulasimbilgi.adana.bel.tr/" target="_blank" rel="noopener">Resmî Adana Ulaşım sitesi</a>' +
+      '<a class="btn ghost wide" href="https://github.com/wendigo0ooo/adana-hat-rehberi/blob/main/docs/gizlilik.md" target="_blank" rel="noopener">Gizlilik politikası</a>' +
+      '<a class="btn ghost wide" href="https://github.com/wendigo0ooo/adana-hat-rehberi/issues/new?template=hat-durak-saati.md" target="_blank" rel="noopener">Hata bildir</a>' +
+      '<a class="btn ghost wide" href="https://github.com/wendigo0ooo/adana-hat-rehberi/issues/new?template=oneri.md" target="_blank" rel="noopener">Öneri gönder</a>' +
       "</div></section>";
 
-    html += '<p class="version">Sürüm 1.0 · Veri: ' + U.esc(meta.generated || "") + "</p></div>";
+    var version = "1.0";
+    if (window.AndroidBridge && window.AndroidBridge.appVersion) {
+      try { version = window.AndroidBridge.appVersion(); } catch (e) {}
+    }
+    html += '<p class="version">Sürüm ' + U.esc(version) + " · Veri: " + U.esc(meta.generated || "") + "</p></div>";
     view.innerHTML = html;
   }
 

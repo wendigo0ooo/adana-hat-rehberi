@@ -160,7 +160,10 @@ düzeltmek.
 - App Links / deep link ve widget.
 - Tam WCAG denetimi (TalkBack turu, 200 % yazı boyutu cihaz testi).
 
-## Faz 3 — Yayın ve otomasyon (≈1-2 ay)
+## Faz 3 — Yayın ve otomasyon (≈1-2 ay) — KOD TARAFI TAMAM (build 9)
+
+Play Console hesabı, AAB yükleme, 12 testers × 14 gün kapalı test ve mağaza
+formları kullanıcı hesabı gerektirir; adımlar aşağıda.
 
 1. **Play Store**: $25 hesap, AAB, targetSdk 36, Data Safety ("veri
    toplanmıyor"), gizlilik politikası URL'si + uygulama içi bağlantı, konum

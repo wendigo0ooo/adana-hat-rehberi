@@ -274,6 +274,9 @@ class MainActivity : AppCompatActivity() {
         }
 
         @JavascriptInterface
+        fun appVersion(): String = BuildConfig.VERSION_NAME
+
+        @JavascriptInterface
         fun share(text: String) {
             runOnUiThread {
                 val intent = Intent(Intent.ACTION_SEND).apply {

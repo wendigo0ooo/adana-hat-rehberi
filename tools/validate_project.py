@@ -131,6 +131,8 @@ def validate_files():
         "www/js/app.js",
         "www/manifest.json",
         "www/sw.js",
+        "docs/gizlilik.md",
+        ".github/ISSUE_TEMPLATE/hat-durak-saati.md",
         "www/vendor/leaflet/leaflet.js",
         "www/vendor/leaflet/leaflet.css",
         "www/icons/icon-192.png",

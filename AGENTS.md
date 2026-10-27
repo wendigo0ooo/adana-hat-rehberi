@@ -117,6 +117,11 @@ Gradle 8.7 + aapt2 override gerekir). **Birincil yol CI.**
       yedekleme kuralları (WebView verisi buluta gitmiyor), debug'da log.
       Ertelenen: targetSdk 36 + edge-to-edge, WebViewAssetLoader + CSP,
       App Links/deep link, widget.
+- [x] Faz 3 kod tarafı (build 9): uygulama içi sürüm bilgisi (native bridge),
+      gizlilik politikası, hata/öneri bildirim bağlantıları, GitHub issue
+      şablonları, veri yenileme haftalık (her pazartesi) PR akışı.
+      Kullanıcı tarafı kalanlar: Play Console hesabı, 12 testers × 14 gün,
+      targetSdk 36 yükseltmesi, AAB, mağaza formları.
 - [ ] İleride: GTFS yenileme (2026-11-30 sonrası), dolmuş attribution
       düzeltmeleri, cep durak katkısı, canlı araç konumu (opsiyonel, KVKK:
       plaka verisi saklanmamalı). Aktarma araması hâlâ durak ID eşitliğine

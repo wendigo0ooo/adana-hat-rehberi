@@ -176,6 +176,8 @@ ok(annCount === 0 || !!document.querySelector(".announce"), "duyurular ana sayfa
 
 navigate("#/info");
 ok(document.querySelectorAll(".fare-table tbody tr").length >= 4, "ücret tablosu");
+ok(document.body.textContent.indexOf("Gizlilik politikası") >= 0, "gizlilik politikası bağlantısı var");
+ok((document.querySelector(".version") || {}).textContent.indexOf("Sürüm") >= 0, "sürüm bilgisi gösteriliyor");
 ok(annCount === 0 || document.querySelectorAll(".announce").length > 0, "duyurular bilgi sayfasında");
 ok(document.body.textContent.indexOf("M1") >= 0, "metro bilgisi");
 
