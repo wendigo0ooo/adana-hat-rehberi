@@ -21,3 +21,6 @@ credentials.txt
 
 # İşletim sistemi
 .DS_Store
+
+# Yerel veri üretim çıktıları
+build/

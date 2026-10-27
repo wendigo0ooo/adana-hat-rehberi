@@ -61,7 +61,9 @@ npm test
 ```
 
 `build_data.py`, `data-src/` altındaki GTFS ve resmî API yanıtlarını okur;
-`www/data/*.json` ve `www/data/network.js` dosyalarını üretir. GTFS kaynağı
+uygulamanın kullandığı `www/data/network.js` dosyasını ve yalnızca yerel
+denetim için `build/data/*.json` ara dosyalarını üretir. Ara JSON'lar APK'ya
+girmez. GTFS kaynağı
 [Egezenn/kk-gtfs](https://github.com/Egezenn/kk-gtfs) (CC0 derleme), resmî
 bilgiler [Adana Ulaşım Bilgi](https://ulasimbilgi.adana.bel.tr/) sisteminden alınır.
 Ücretler ve geçerlilik tarihleri `www/data/meta.json` içinde kaynaklarıyla tutulur.

@@ -105,11 +105,11 @@
       return total;
     },
 
-    stats: function (route, dir) {
-      var key = this.todayKey();
+    stats: function (route, dir, dayKeyOverride) {
+      var key = dayKeyOverride || this.todayKey();
       var dep = this.departures(dir, key);
       var wd = this.departures(dir, "wd");
-      var source = dep.length ? dep : wd;
+      var hasService = dep.length > 0;
       var gaps = [];
       for (var i = 1; i < wd.length; i++) {
         var gap = minutesOf(wd[i]) - minutesOf(wd[i - 1]);
@@ -117,8 +117,9 @@
       }
       return {
         dayKey: key,
-        first: source.length ? source[0] : null,
-        last: source.length ? source[source.length - 1] : null,
+        hasService: hasService,
+        first: hasService ? dep[0] : null,
+        last: hasService ? dep[dep.length - 1] : null,
         count: dep.length,
         weekdayCount: wd.length,
         headway: median(gaps),

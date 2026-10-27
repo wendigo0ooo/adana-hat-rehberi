@@ -13,6 +13,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "data-src")
 GTFS = os.path.join(SRC, "gtfs")
 OUT = os.path.join(ROOT, "www", "data")
+OUT_META = os.path.join(ROOT, "build", "data")
 
 FEED_VALID_FROM = "2026-10-01"
 FEED_VALID_UNTIL = "2026-11-30"
@@ -476,6 +477,7 @@ def build_metro(stop_data):
 
 def main():
     os.makedirs(OUT, exist_ok=True)
+    os.makedirs(OUT_META, exist_ok=True)
     routes, stop_data = build_routes()
     metro, stations = build_metro(stop_data)
     routes.append(metro)
@@ -521,11 +523,11 @@ def main():
                       "Yolculuk öncesi güncel bilgiyi resmî kanallardan doğrulayın.",
     }
 
-    with open(os.path.join(OUT, "routes.json"), "w", encoding="utf-8") as fh:
+    with open(os.path.join(OUT_META, "routes.json"), "w", encoding="utf-8") as fh:
         json.dump(routes, fh, ensure_ascii=False, separators=(",", ":"))
-    with open(os.path.join(OUT, "stops.json"), "w", encoding="utf-8") as fh:
+    with open(os.path.join(OUT_META, "stops.json"), "w", encoding="utf-8") as fh:
         json.dump(stop_data, fh, ensure_ascii=False, separators=(",", ":"))
-    with open(os.path.join(OUT, "meta.json"), "w", encoding="utf-8") as fh:
+    with open(os.path.join(OUT_META, "meta.json"), "w", encoding="utf-8") as fh:
         json.dump(meta, fh, ensure_ascii=False, indent=2)
     network = {"meta": meta, "routes": routes, "stops": stop_data}
     with open(os.path.join(OUT, "network.js"), "w", encoding="utf-8") as fh:
@@ -534,9 +536,11 @@ def main():
         fh.write(";\n")
 
     print("routes:", len(routes), "dirs:", dir_count, "stops:", stops_count)
-    for name in ("routes.json", "stops.json", "meta.json", "network.js"):
-        size = os.path.getsize(os.path.join(OUT, name))
+    for name in ("routes.json", "stops.json", "meta.json"):
+        size = os.path.getsize(os.path.join(OUT_META, name))
         print(name, "%.1f KB" % (size / 1024))
+    size = os.path.getsize(os.path.join(OUT, "network.js"))
+    print("network.js", "%.1f KB" % (size / 1024))
 
 
 if __name__ == "__main__":

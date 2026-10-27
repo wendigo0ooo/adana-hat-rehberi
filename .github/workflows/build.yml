@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: build-${{ github.ref }}
@@ -16,14 +16,16 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version: '24'
           cache: npm
 
       - name: Install dependencies
@@ -35,22 +37,24 @@ jobs:
   build:
     needs: test
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     defaults:
       run:
         working-directory: android
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: '8.7'
 
@@ -89,8 +93,22 @@ jobs:
           (cd out && sha256sum *.apk > SHA256SUMS.txt)
           ls -lh out
 
+
+      - name: APK boyut bütçesi
+        run: |
+          if [ ! -f out/AdanaHatRehberi-release.apk ]; then
+            echo "Release APK yok; boyut bütçesi atlandı."
+            exit 0
+          fi
+          size=$(stat -c%s out/AdanaHatRehberi-release.apk)
+          echo "Release APK: $((size/1024)) KB"
+          if [ "$size" -gt 4194304 ]; then
+            echo "::error::APK 4 MB bütçesini aştı: $((size/1024)) KB"
+            exit 1
+          fi
+
       - name: Upload APK artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: AdanaHatRehberi-build${{ github.run_number }}
           path: |
@@ -100,7 +118,7 @@ jobs:
 
       - name: Publish release
         if: github.event_name == 'push'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: v1.0-build${{ github.run_number }}
           name: Adana Hat Rehberi (build ${{ github.run_number }})

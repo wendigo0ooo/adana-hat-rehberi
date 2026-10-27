@@ -101,14 +101,20 @@ function input(el, value) {
   el.dispatchEvent(new window.Event("input", { bubbles: true }));
 }
 
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+(async function main() {
+
 ok(!!document.getElementById("searchInput"), "ana sayfa ve arama kutusu render edildi");
 ok(document.querySelectorAll(".mode-chips .chip").length === 4, "tür filtreleri var");
 ok(document.querySelectorAll("#homeDefault .route-card").length >= 5, "popüler hatlar listeleniyor");
 ok(document.getElementById("topSub").textContent.indexOf("189 hat") >= 0, "üst başlıkta veri sayısı");
 
 input(document.getElementById("searchInput"), "114");
+await wait(180);
 ok(document.getElementById("searchResults").textContent.indexOf("114") >= 0, "hat numarası araması");
 input(document.getElementById("searchInput"), "küçük saat");
+await wait(180);
 ok(document.getElementById("searchResults").textContent.indexOf("Duraklar") >= 0, "durak araması");
 
 navigate("#/route/00114/0");
@@ -125,8 +131,16 @@ ok(!!boardCard && boardCard.textContent.indexOf("Varış durağı") >= 0, "varı
 ok(!!document.querySelector(".stop-tag.tag-start"), "ilk durak kalkış olarak işaretlendi");
 document.querySelector('.day-tab[data-key="su"]').click();
 ok(document.querySelectorAll(".time").length === 0, "pazar günü sefer yok uyarısı");
+ok(!document.querySelector(".stats-grid"), "pazar günü sahte istatistik gösterilmiyor");
+const sundayNotice = document.querySelector("#timelineCard .notice");
+ok(!!sundayNotice && sundayNotice.textContent.indexOf("sefer bilgisi yok") >= 0,
+  "pazar günü durak listesinde dürüst uyarı var");
+ok(Array.from(document.querySelectorAll("#timelineCard .stime")).every((el) => el.textContent === ""),
+  "pazar günü sahte varış saati gösterilmiyor");
 document.querySelector('.day-tab[data-key="wd"]').click();
 ok(document.querySelectorAll(".time").length > 5, "hafta içi kalkış saatleri listelendi");
+ok(Array.from(document.querySelectorAll("#timelineCard .stime")).some((el) => el.textContent !== ""),
+  "gün değişince durak saatleri yenileniyor");
 const segLinks = document.querySelectorAll(".segmented .seg");
 ok(segLinks.length === 2, "iki yön seçeneği var");
 const firstStopLink = document.querySelector(".stop-timeline li a");
@@ -183,3 +197,4 @@ if (failures.length) {
 } else {
   console.log("\nTüm arayüz testleri geçti.");
 }
+})();

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Proje ve veri bütünlüğünü doğrular (Android SDK gerektirmez)."""
 
+import datetime
 import json
 import os
 import re
@@ -99,6 +100,17 @@ def validate_data(data):
     check(any(r["code"] == "114" and not r.get("limited") for r in routes), "114 hattı eksik")
     check(any(r["mode"] == "minibus" for r in routes), "dolmuş hattı yok")
     check((meta.get("feed", {}).get("validUntil") or "") != "", "feed geçerlilik tarihi yok")
+    valid_until = meta.get("feed", {}).get("validUntil") or ""
+    if valid_until:
+        try:
+            end = datetime.date.fromisoformat(valid_until)
+            today = datetime.date.today()
+            if end < today:
+                errors.append("GTFS geçerlilik tarihi geçmiş: %s" % valid_until)
+            elif (end - today).days <= 14:
+                warnings.append("GTFS geçerliliği %d gün içinde bitiyor: %s" % ((end - today).days, valid_until))
+        except ValueError:
+            errors.append("feed.validUntil geçersiz tarih: %s" % valid_until)
 
 
 def validate_files():

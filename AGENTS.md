@@ -98,6 +98,11 @@ Gradle 8.7 + aapt2 override gerekir). **Birincil yol CI.**
       - Konum butonuna 25 sn JS watchdog, `Number.isFinite` kontrolü ve
         son konumun ekran dönüşünde korunması eklendi.
       - WebView'a `onConsoleMessage` / `onReceivedError` günlüklemesi eklendi.
+- [x] Faz 0 (build 6): hafta sonu sefer dürüstlüğü (sahte saat/istatistik yok),
+      gün sekmesi durak listesini de yeniliyor, veri tazeliği rozeti + validator
+      tarih kapısı, CI Node 24 / güncel action sürümleri, arama debounce,
+      ara JSON'lar `build/data` altına taşındı (APK'ya girmiyor) + 4 MB bütçe,
+      kontrast AA ve dokunma hedefleri düzeltildi.
 - [ ] İleride: GTFS yenileme (2026-11-30 sonrası), dolmuş attribution
       düzeltmeleri, cep durak katkısı, canlı araç konumu (opsiyonel, KVKK:
       plaka verisi saklanmamalı). Aktarma araması hâlâ durak ID eşitliğine
