@@ -72,9 +72,10 @@ Gradle 8.7 + aapt2 override gerekir). **Birincil yol CI.**
 - [x] Testler yeşil (Pazar sekmesi testi tarih bağımlıydı, düzeltildi).
 - [x] GitHub deposu açıldı, ilk commit atıldı, CI APK üretiyor.
 - [x] Dedicated release keystore üretildi ve repo secret'larına eklendi.
-- [x] İlk sürüm yayınlandı: `v1.0-build1`
-      https://github.com/wendigo0ooo/adana-hat-rehberi/releases/tag/v1.0-build1
+- [x] Sürümler yayınlandı; her `main` push'unda CI yeni build üretir.
+      En güncel APK: https://github.com/wendigo0ooo/adana-hat-rehberi/releases/latest
       Release APK imzası `apksigner` ile doğrulandı (V2, CN=Adana Hat Rehberi).
+      Düzeltme sürümü: `v1.0-build3` (harita + konum + biniş bilgisi).
 - [x] Kullanıcı geri bildirimi sonrası düzeltmeler (build 3+):
       - Harita çökmesi: `map.js` Leaflet sınıfını `new` olmadan çağırıyordu
         (`gridLayer()()`). `new Grid()` yapıldı; `try/catch`, resize/orientation
