@@ -16,7 +16,7 @@
 
   function gridLayer() {
     var dark = isDark();
-    return global.L.GridLayer.extend({
+    var Grid = global.L.GridLayer.extend({
       createTile: function () {
         var size = this.getTileSize();
         var tile = document.createElement("canvas");
@@ -31,6 +31,7 @@
         return tile;
       }
     });
+    return new Grid();
   }
 
   function destroy() {
@@ -43,29 +44,54 @@
   function baseMap(el) {
     destroy();
     if (!global.L) return null;
-    var map = global.L.map(el, {
-      zoomControl: false,
-      attributionControl: true,
-      preferCanvas: true,
-      minZoom: 10,
-      maxZoom: 19
-    });
-    map.attributionControl.setPrefix("");
-    gridLayer()().addTo(map);
-    global.L.control.zoom({ position: "bottomright" }).addTo(map);
-    current = { map: map, tiles: null, el: el };
-    setTimeout(function () { map.invalidateSize(); }, 60);
+    var map;
+    try {
+      map = global.L.map(el, {
+        zoomControl: false,
+        attributionControl: true,
+        preferCanvas: true,
+        minZoom: 10,
+        maxZoom: 19
+      });
+      map.attributionControl.setPrefix("");
+      gridLayer().addTo(map);
+      global.L.control.zoom({ position: "bottomright" }).addTo(map);
+      current = { map: map, tiles: null, el: el };
+    } catch (e) {
+      if (global.console) console.error("Harita başlatılamadı:", e);
+      destroy();
+      return null;
+    }
+    var refresh = function () {
+      try { map.invalidateSize({ animate: false }); } catch (e) {}
+    };
+    setTimeout(refresh, 60);
+    if (global.requestAnimationFrame) global.requestAnimationFrame(refresh);
     return map;
+  }
+
+  var resizeTimer = null;
+  function onViewportChange() {
+    if (!current || !current.map) return;
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function () {
+      if (!current || !current.map) return;
+      try { current.map.invalidateSize({ animate: false }); } catch (e) {}
+    }, 150);
+  }
+  if (global.addEventListener) {
+    global.addEventListener("resize", onViewportChange);
+    global.addEventListener("orientationchange", onViewportChange);
   }
 
   function colorFor(mode) { return COLORS[mode] || COLORS.bus; }
 
   function route(el, opts) {
+    var dir = opts.dir;
+    var shape = (dir && dir.shape) || [];
+    if (shape.length < 2) return false;
     var map = baseMap(el);
     if (!map) return false;
-    var dir = opts.dir;
-    var shape = dir.shape || [];
-    if (shape.length < 2) return false;
 
     var color = colorFor(opts.route.mode);
     global.L.polyline(shape, { color: "#ffffff", weight: 9, opacity: 0.9, lineCap: "round" }).addTo(map);
@@ -98,10 +124,10 @@
   }
 
   function stop(el, opts) {
-    var map = baseMap(el);
-    if (!map) return false;
     var s = opts.stop;
     if (!s) return false;
+    var map = baseMap(el);
+    if (!map) return false;
     global.L.circle([s[1], s[2]], {
       radius: 300, color: "#0d9488", weight: 1, opacity: 0.5,
       fillColor: "#0d9488", fillOpacity: 0.08

@@ -20,7 +20,9 @@
     timeKey: null,
     plan: { from: null, to: null },
     current: null,
-    locating: false
+    locating: false,
+    locateTimer: null,
+    lastFix: null
   };
 
   function favs() {
@@ -108,7 +110,12 @@
 
   function parseHash() {
     var raw = location.hash.replace(/^#/, "") || "/";
-    var parts = raw.split("/").filter(function (p) { return p.length; }).map(decodeURIComponent);
+    var parts;
+    try {
+      parts = raw.split("/").filter(function (p) { return p.length; }).map(decodeURIComponent);
+    } catch (e) {
+      return { name: "home" };
+    }
     if (!parts.length) return { name: "home" };
     if (parts[0] === "route" && parts[1]) {
       return { name: "route", id: parts[1], d: parts[2] != null ? parseInt(parts[2], 10) : null };
@@ -142,6 +149,18 @@
     else renderHome();
   }
 
+  function stopCodes(stopId, limit) {
+    var seen = {};
+    var out = [];
+    (D.linesAt(stopId) || []).forEach(function (line) {
+      var code = line.route.code;
+      if (seen[code]) return;
+      seen[code] = true;
+      out.push(code);
+    });
+    return out.slice(0, limit || 4);
+  }
+
   function updateHomeResults() {
     var results = document.getElementById("searchResults");
     var def = document.getElementById("homeDefault");
@@ -163,7 +182,7 @@
       html += '<section class="block"><div class="block-head"><h3>Duraklar</h3><span class="muted">' +
         stops.length + '</span></div><div class="stop-list">' +
         stops.map(function (s) {
-          return U.stopRow(s, { lines: (D.linesAt(s.id) || []).length });
+          return U.stopRow(s, { lines: (D.linesAt(s.id) || []).length, codes: stopCodes(s.id) });
         }).join("") + "</div></section>";
     }
     if (!html && state.mode !== "all") {
@@ -264,6 +283,7 @@
       "</div></div>";
 
     updateHomeResults();
+    if (state.lastFix) showNearby(state.lastFix.lat, state.lastFix.lon);
     if (focusSearch) {
       var input = document.getElementById("searchInput");
       if (input) { input.focus(); input.setSelectionRange(input.value.length, input.value.length); }
@@ -271,25 +291,43 @@
   }
 
   function showNearby(lat, lon) {
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) { U.toast("Konum alınamadı", "error"); return; }
+    state.lastFix = { lat: lat, lon: lon };
     var box = document.getElementById("nearbyBox");
-    if (!box) { U.toast("Konum alındı"); return; }
-    if (!isFinite(lat) || !isFinite(lon)) { U.toast("Konum alınamadı", "error"); return; }
+    if (!box) return;
     var stops = D.nearbyStops(lat, lon, 10, 2500);
     if (!stops.length) {
       box.innerHTML = '<p class="empty">2,5 km içinde durak bulunamadı.</p>';
       return;
     }
-    box.innerHTML = '<p class="nearby-title">En yakın duraklar</p><div class="stop-list">' +
+    box.innerHTML = '<p class="nearby-title">En yakın duraklar <button class="link-btn" data-action="locate">yenile</button></p>' +
+      '<div class="stop-list">' +
       stops.map(function (s) {
-        return U.stopRow(s, { lines: (D.linesAt(s.id) || []).length });
+        return U.stopRow(s, { lines: (D.linesAt(s.id) || []).length, codes: stopCodes(s.id) });
       }).join("") + "</div>";
   }
 
+  function stopLocateTimer() {
+    if (state.locateTimer) { clearTimeout(state.locateTimer); state.locateTimer = null; }
+  }
+
+  function locateFailed(message) {
+    state.locating = false;
+    stopLocateTimer();
+    U.toast(message || "Konum alınamadı. Konum iznini kontrol edin.", "error");
+    var box = document.getElementById("nearbyBox");
+    if (box && !state.lastFix) box.innerHTML = nearbyIntro();
+  }
+
   function locate() {
-    if (state.locating) return;
     state.locating = true;
+    stopLocateTimer();
     var box = document.getElementById("nearbyBox");
     if (box) box.innerHTML = '<div class="loading">' + U.icon("locate") + " Konum alınıyor…</div>";
+
+    state.locateTimer = setTimeout(function () {
+      locateFailed("Konum alınamadı. Açık alanda tekrar deneyin.");
+    }, 25000);
 
     if (window.AndroidBridge && window.AndroidBridge.requestLocation) {
       try { window.AndroidBridge.requestLocation(); return; } catch (e) {}
@@ -297,17 +335,14 @@
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(function (pos) {
         state.locating = false;
-        showNearby(pos.coords.latitude, pos.coords.longitude);
+        stopLocateTimer();
+        showNearby(Number(pos.coords.latitude), Number(pos.coords.longitude));
       }, function () {
-        state.locating = false;
-        U.toast("Konum alınamadı. Konum iznini kontrol edin.", "error");
-        var b = document.getElementById("nearbyBox");
-        if (b) b.innerHTML = nearbyIntro();
-      }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 });
+        locateFailed("Konum alınamadı. Konum iznini kontrol edin.");
+      }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 });
       return;
     }
-    state.locating = false;
-    U.toast("Bu cihazda konum desteklenmiyor.", "error");
+    locateFailed("Bu cihazda konum desteklenmiyor.");
   }
 
   function planField(field, label, iconName, value, placeholder) {
@@ -397,22 +432,65 @@
     var key = state.timeKey || D.todayKey();
     var dep = D.departures(dir, key);
     if (!dep.length) dep = D.departures(dir, "wd");
-    var first = dep.length ? dep[0] : null;
+    var base = dep.length ? dep[0] : null;
+    var baseLabel = "İlk sefer";
+    if (dep.length && key === D.todayKey()) {
+      var now = new Date();
+      var nowMin = now.getHours() * 60 + now.getMinutes();
+      var next = -1;
+      for (var n = 0; n < dep.length; n++) {
+        if (window.AdanaTime.minutesOf(dep[n]) >= nowMin) { next = n; break; }
+      }
+      if (next >= 0) { base = dep[next]; baseLabel = "Sıradaki sefer"; }
+      else { base = dep[dep.length - 1]; baseLabel = "Son sefer"; }
+    }
     var lastIndex = dir.stops.length - 1;
 
     return '<div class="card"><div class="card-head"><h3>Duraklar</h3><span class="muted">' +
-      dir.stops.length + " durak</span></div><ol class=\"stop-timeline\">" +
+      dir.stops.length + " durak" + (base ? " · " + baseLabel + " " + base : "") +
+      "</span></div><p class=\"hint timeline-hint\">Süreler kalkış durağına göre yaklaşık varış saatleridir.</p>" +
+      "<ol class=\"stop-timeline\">" +
       dir.stops.map(function (sid, i) {
         var stop = D.stop(sid);
         var name = stop ? stop[0] : "Durak";
-        var time = D.arrivalAt(dir, i, first);
+        var time = D.arrivalAt(dir, i, base);
         var terminal = i === 0 || i === lastIndex;
+        var tag = i === 0 ? '<span class="stop-tag tag-start">Kalkış</span>' :
+          (i === lastIndex ? '<span class="stop-tag">Son durak</span>' : "");
         return "<li><a href=\"#/stop/" + encodeURIComponent(sid) + "\">" +
           '<span class="rail"><span class="dot' + (terminal ? " terminal" : "") + '"></span></span>' +
           '<span class="seq">' + (i + 1) + "</span>" +
-          '<span class="sname">' + U.esc(name) + "</span>" +
+          '<span class="sname">' + U.esc(name) + "</span>" + tag +
           '<span class="stime">' + (time || "") + "</span></a></li>";
       }).join("") + "</ol></div>";
+  }
+
+  function dirLabel(dir) {
+    if (dir && dir.stops && dir.stops.length) {
+      return U.esc(D.stopName(dir.stops[0])) + " → " + U.esc(D.stopName(dir.stops[dir.stops.length - 1]));
+    }
+    return U.esc(dir ? dir.heads : "");
+  }
+
+  function splitHeads(heads) {
+    var parts = String(heads || "").split(/\s*(?:→|->|–|—)\s*/);
+    if (parts.length < 2) return null;
+    return { from: parts[0], to: parts.slice(1).join(" → ") };
+  }
+
+  function boardingCard(dir) {
+    if (!dir || !dir.stops || dir.stops.length < 2) return "";
+    var origin = D.stop(dir.stops[0]);
+    var dest = D.stop(dir.stops[dir.stops.length - 1]);
+    if (!origin || !dest) return "";
+    return '<div class="card boarding-card">' +
+      '<div class="boarding-row"><span class="boarding-k">' + U.icon("pin", "ic-xs") + " Kalkış durağı</span>" +
+      '<a class="boarding-v" href="#/stop/' + encodeURIComponent(dir.stops[0]) + '">' + U.esc(origin[0]) + "</a></div>" +
+      '<div class="boarding-row"><span class="boarding-k">' + U.icon("pin", "ic-xs") + " Varış durağı</span>" +
+      '<a class="boarding-v" href="#/stop/' + encodeURIComponent(dir.stops[dir.stops.length - 1]) + '">' +
+      U.esc(dest[0]) + "</a></div>" +
+      '<p class="boarding-note">' + U.icon("bus", "ic-xs") +
+      " Aracı bu duraktan binin · Yön: " + U.esc(dir.heads) + "</p></div>";
   }
 
   function routeHero(route) {
@@ -449,18 +527,26 @@
     if (r.dirs.length > 1) {
       body += '<div class="segmented">' + r.dirs.map(function (d, idx) {
         return '<a class="seg ' + (idx === dirIndex ? "active" : "") + '" href="#/route/' +
-          encodeURIComponent(r.id) + "/" + d.d + '">' + U.esc(d.heads) + "</a>";
+          encodeURIComponent(r.id) + "/" + d.d + '" title="' + U.esc(d.heads) + '">' + dirLabel(d) + "</a>";
       }).join("") + "</div>";
     } else if (dir && dir.heads) {
       body += '<div class="single-dir">' + U.icon("transfer") + U.esc(dir.heads) + "</div>";
     }
 
+    if (dir && dir.stops && dir.stops.length) body += boardingCard(dir);
+
     if (r.limited) {
       body += '<div class="notice">' + U.icon("info") +
         "<div><strong>Bu hat için detay verisi yok</strong><span>Resmî listede hat ve yön bilgisi var; durak ve sefer saatleri yayımlanmamış. Güncel bilgi için resmî kanalları kontrol edin.</span></div></div>" +
-        '<div class="card"><div class="card-head"><h3>Yönler</h3></div><div class="dir-list">' +
-        r.dirs.map(function (d) { return '<div class="dir-item">' + U.icon("transfer") + U.esc(d.heads) + "</div>"; }).join("") +
-        "</div></div>" +
+        '<div class="card"><div class="card-head"><h3>Kalkış ve varış</h3></div><div class="dir-list">' +
+        r.dirs.map(function (d) {
+          var ends = splitHeads(d.heads);
+          if (!ends) return '<div class="dir-item">' + U.icon("transfer") + U.esc(d.heads) + "</div>";
+          return '<div class="dir-item dir-item-ends"><div><span>Kalkış</span><strong>' + U.esc(ends.from) +
+            "</strong></div>" + U.icon("transfer") + '<div><span>Varış</span><strong>' + U.esc(ends.to) +
+            "</strong></div></div>";
+        }).join("") +
+        "</div><p class=\"hint\">Bu hat için durak listesi ve sefer saati yayımlanmadığından yalnızca yön uçları gösterilir.</p></div>" +
         '<a class="btn ghost" href="https://ulasimbilgi.adana.bel.tr/Otobusler" target="_blank" rel="noopener">Resmî sitede kontrol et</a>' +
         sourceNote();
       view.innerHTML = '<div class="page detail-page">' + body + "</div>";
@@ -492,8 +578,15 @@
 
     if (dir && dir.shape && dir.shape.length > 1) {
       var el = document.getElementById("routeMap");
-      if (el) window.MapView.route(el, { route: r, dir: dir });
+      if (el && !window.MapView.route(el, { route: r, dir: dir })) mapFallback(el);
     }
+  }
+
+  function mapFallback(el) {
+    var card = el.closest(".map-card");
+    if (!card) return;
+    card.innerHTML = '<div class="map-fallback">' + U.icon("info") +
+      "<span>Harita bu cihazda gösterilemedi. Güzergahı aşağıdaki durak listesinden takip edebilirsin.</span></div>";
   }
 
   function stat(label, value, sub) {
@@ -554,7 +647,7 @@
 
     view.innerHTML = '<div class="page detail-page">' + body + "</div>";
     var el = document.getElementById("stopMap");
-    if (el) window.MapView.stop(el, { stop: stop, nearby: nearby });
+    if (el && !window.MapView.stop(el, { stop: stop, nearby: nearby })) mapFallback(el);
   }
 
   function renderFavorites() {
@@ -665,9 +758,11 @@
     if (q.length < 2) { box.hidden = true; box.innerHTML = ""; return; }
     var stops = D.searchStops(q, 8);
     box.innerHTML = stops.length ? stops.map(function (s) {
+      var codes = stopCodes(s.id, 4);
+      var meta = codes.length ? codes.join(" · ") : ((D.linesAt(s.id) || []).length + " hat");
       return '<button class="sug-item" data-action="pick-stop" data-field="' + field + '" data-id="' +
         U.esc(s.id) + '"><span class="sug-name">' + U.esc(s.name) + '</span><span class="sug-meta">' +
-        (D.linesAt(s.id) || []).length + " hat" + (s.kind === 1 ? " · metro" : "") + "</span></button>";
+        U.esc(meta) + (s.kind === 1 ? " · metro" : "") + "</span></button>";
     }).join("") : '<div class="sug-empty">Durak bulunamadı</div>';
     box.hidden = false;
   }, 110);
@@ -774,13 +869,11 @@
 
   window.onNativeLocation = function (lat, lon) {
     state.locating = false;
+    stopLocateTimer();
     showNearby(Number(lat), Number(lon));
   };
   window.onNativeLocationError = function (message) {
-    state.locating = false;
-    U.toast(message || "Konum alınamadı. Konum iznini kontrol edin.", "error");
-    var box = document.getElementById("nearbyBox");
-    if (box) box.innerHTML = nearbyIntro();
+    locateFailed(message);
   };
 
   window.App = {

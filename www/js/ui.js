@@ -72,7 +72,8 @@
   function stopRow(stop, opts) {
     opts = opts || {};
     var sub = [];
-    if (opts.lines != null) sub.push(opts.lines + " hat");
+    if (opts.codes && opts.codes.length) sub.push(opts.codes.join(" · "));
+    else if (opts.lines != null) sub.push(opts.lines + " hat");
     if (stop.dist != null) sub.push(formatDistance(stop.dist));
     if (stop.kind === 1) sub.push("Metro istasyonu");
     return '<a class="stop-row" href="#/stop/' + encodeURIComponent(stop.id) + '">' +
@@ -81,32 +82,45 @@
       icon("chevron", "chev") + "</a>";
   }
 
+  function stopLink(id, name) {
+    return '<a class="stop-link" href="#/stop/' + encodeURIComponent(id) + '">' + esc(name) + "</a>";
+  }
+
   function journeyDirect(item) {
     var route = item.route;
-    var fromName = global.AdanaData.stopName(item.dir.stops[item.fromIdx]);
-    var toName = global.AdanaData.stopName(item.dir.stops[item.toIdx]);
+    var fromId = item.dir.stops[item.fromIdx];
+    var toId = item.dir.stops[item.toIdx];
     return '<div class="journey">' +
       '<div class="j-time"><strong>' + item.mins + '</strong><span>dk</span></div>' +
       '<div class="j-body">' +
       '<div class="leg">' + badge(route) + '<div class="leg-main"><strong>' + esc(route.name) + "</strong><small>" +
-      esc(item.dir.heads) + "</small></div></div>" +
-      '<div class="j-meta">' + icon("pin", "ic-xs") + " Bin: " + esc(fromName) + " · İn: " + esc(toName) +
+      "Yön: " + esc(item.dir.heads) + "</small></div></div>" +
+      '<div class="j-meta">' + icon("pin", "ic-xs") + " Bin: " + stopLink(fromId, global.AdanaData.stopName(fromId)) +
+      " · İn: " + stopLink(toId, global.AdanaData.stopName(toId)) +
       " · " + item.stops + " durak · ~" + item.wait + " dk bekleme</div>" +
       "</div></div>";
   }
 
   function journeyTransfer(item) {
-    var fromName = global.AdanaData.stopName(item.first.dir.stops[item.first.fromIdx]);
-    var transferName = global.AdanaData.stopName(item.transfer);
-    var toName = global.AdanaData.stopName(item.second.dir.stops[item.second.toIdx]);
+    var fromId = item.first.dir.stops[item.first.fromIdx];
+    var transferId = item.transfer;
+    var toId = item.second.dir.stops[item.second.toIdx];
+    var fromName = global.AdanaData.stopName(fromId);
+    var transferName = global.AdanaData.stopName(transferId);
+    var toName = global.AdanaData.stopName(toId);
     return '<div class="journey journey-transfer">' +
       '<div class="j-time"><strong>' + item.mins + '</strong><span>dk</span></div>' +
       '<div class="j-body">' +
       '<div class="leg">' + badge(item.first.route) + '<div class="leg-main"><strong>' + esc(item.first.route.name) +
-      "</strong><small>Bin: " + esc(fromName) + " → İn: " + esc(transferName) + "</small></div></div>" +
-      '<div class="transfer-line">' + icon("transfer", "ic-xs") + " Aktarma: <strong>" + esc(transferName) + "</strong></div>" +
+      "</strong><small>Yön: " + esc(item.first.dir.heads) + "</small></div></div>" +
+      '<div class="j-meta">' + icon("pin", "ic-xs") + " Bin: " + stopLink(fromId, fromName) +
+      " → İn: " + stopLink(transferId, transferName) + "</div>" +
+      '<div class="transfer-line">' + icon("transfer", "ic-xs") + " Aktarma: <strong>" + esc(transferName) +
+      "</strong> · burada inip diğer araca bin</div>" +
       '<div class="leg">' + badge(item.second.route) + '<div class="leg-main"><strong>' + esc(item.second.route.name) +
-      "</strong><small>Bin: " + esc(transferName) + " → İn: " + esc(toName) + "</small></div></div>" +
+      "</strong><small>Yön: " + esc(item.second.dir.heads) + "</small></div></div>" +
+      '<div class="j-meta">' + icon("pin", "ic-xs") + " Bin: " + stopLink(transferId, transferName) +
+      " → İn: " + stopLink(toId, toName) + "</div>" +
       "</div></div>";
   }
 

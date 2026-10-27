@@ -19,6 +19,8 @@ function ok(condition, label) {
   if (!condition) failures.push(label);
 }
 
+const mapStats = { maps: 0, grids: 0, polylines: 0, markers: 0, fits: 0, tiles: 0 };
+
 function layer() {
   const obj = {
     addTo() { return obj; },
@@ -31,24 +33,36 @@ function layer() {
 
 const L = {
   map() {
-    return {
-      setView() { return this; },
-      fitBounds() { return this; },
+    mapStats.maps += 1;
+    const map = {
+      setView() { return map; },
+      fitBounds() { mapStats.fits += 1; return map; },
       remove() {},
       invalidateSize() {},
       removeLayer() {},
       attributionControl: { setPrefix() {} }
     };
+    return map;
   },
-  GridLayer: { extend() { return function () { return layer(); }; } },
+  GridLayer: {
+    extend() {
+      function Grid() {
+        if (!(this instanceof Grid)) throw new Error("GridLayer sınıfı new olmadan çağrıldı");
+        this.getTileSize = () => ({ x: 256, y: 256 });
+        this.addTo = () => { mapStats.grids += 1; return this; };
+        this.bringToBack = () => this;
+      }
+      return Grid;
+    }
+  },
   control: {
     zoom() { return layer(); },
     attribution() { return layer(); }
   },
-  polyline() { return layer(); },
-  circleMarker() { return layer(); },
-  circle() { return layer(); },
-  tileLayer() { return layer(); },
+  polyline() { mapStats.polylines += 1; return layer(); },
+  circleMarker() { mapStats.markers += 1; return layer(); },
+  circle() { mapStats.markers += 1; return layer(); },
+  tileLayer() { mapStats.tiles += 1; return layer(); },
   latLngBounds() { return { extend() { return this; } }; }
 };
 
@@ -100,7 +114,15 @@ ok(document.getElementById("searchResults").textContent.indexOf("Duraklar") >= 0
 navigate("#/route/00114/0");
 ok(document.getElementById("topTitle").textContent.indexOf("114") >= 0, "hat detayı başlığı");
 ok(document.querySelectorAll(".stop-timeline li").length > 40, "hat durakları listelendi");
-ok(!!document.getElementById("routeMap"), "güzergah haritası oluşturuldu");
+ok(!!document.getElementById("routeMap"), "güzergah haritası kapsayıcısı var");
+ok(mapStats.maps > 0 && mapStats.grids > 0, "harita ve şematik zemin başlatıldı");
+ok(mapStats.polylines >= 2, "güzergah çizgisi çizildi");
+ok(mapStats.markers > 40, "güzergah durak işaretleri eklendi");
+ok(mapStats.fits > 0, "harita güzergaha sığdırıldı");
+const boardCard = document.querySelector(".boarding-card");
+ok(!!boardCard && boardCard.textContent.indexOf("Kalkış durağı") >= 0, "kalkış durağı bilgisi gösterildi");
+ok(!!boardCard && boardCard.textContent.indexOf("Varış durağı") >= 0, "varış durağı bilgisi gösterildi");
+ok(!!document.querySelector(".stop-tag.tag-start"), "ilk durak kalkış olarak işaretlendi");
 document.querySelector('.day-tab[data-key="su"]').click();
 ok(document.querySelectorAll(".time").length === 0, "pazar günü sefer yok uyarısı");
 document.querySelector('.day-tab[data-key="wd"]').click();
@@ -112,7 +134,8 @@ const firstStopHref = firstStopLink.getAttribute("href");
 
 navigate(firstStopHref);
 ok(document.querySelectorAll(".line-group").length > 0, "durak detayında hatlar listelendi");
-ok(!!document.getElementById("stopMap"), "durak haritası oluşturuldu");
+ok(!!document.getElementById("stopMap"), "durak haritası kapsayıcısı var");
+ok(mapStats.maps >= 2 && mapStats.markers > 40, "durak haritası çizildi");
 
 const route = window.AdanaData.route("00114");
 const dir = route.dirs[0];

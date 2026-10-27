@@ -75,9 +75,28 @@ Gradle 8.7 + aapt2 override gerekir). **Birincil yol CI.**
 - [x] İlk sürüm yayınlandı: `v1.0-build1`
       https://github.com/wendigo0ooo/adana-hat-rehberi/releases/tag/v1.0-build1
       Release APK imzası `apksigner` ile doğrulandı (V2, CN=Adana Hat Rehberi).
+- [x] Kullanıcı geri bildirimi sonrası düzeltmeler (build 3+):
+      - Harita çökmesi: `map.js` Leaflet sınıfını `new` olmadan çağırıyordu
+        (`gridLayer()()`). `new Grid()` yapıldı; `try/catch`, resize/orientation
+        yenilemesi, harita başarısızsa görünür açıklama eklendi.
+      - Konum: yalnız `ACCESS_FINE_LOCATION` isteniyordu; Android 12+ bunu
+        yok sayıyordu. Artık FINE + COARSE `RequestMultiplePermissions` ile
+        isteniyor, COARSE da yeterli sayılıyor. Ağ + GPS birlikte dinleniyor,
+        en taze son konum seçiliyor, 20 sn timeout ve `removeUpdates` var.
+      - Biniş bilgisi: hat detayına **Kalkış durağı / Varış durağı** kartı,
+        yön etiketi, durak listesinde "Kalkış" / "Son durak" etiketleri ve
+        sıradaki sefere göre varış saatleri eklendi. Sınırlı hatlarda yön
+        uçları (kalkış → varış) gösteriliyor.
+      - Yolculuk planı: yön bilgisi, tıklanabilir durak bağlantıları ve
+        "burada inip diğer araca bin" aktarma açıklaması eklendi.
+      - Durak önerilerinde hat sayısı yerine hat kodları gösteriliyor.
+      - Konum butonuna 25 sn JS watchdog, `Number.isFinite` kontrolü ve
+        son konumun ekran dönüşünde korunması eklendi.
+      - WebView'a `onConsoleMessage` / `onReceivedError` günlüklemesi eklendi.
 - [ ] İleride: GTFS yenileme (2026-11-30 sonrası), dolmuş attribution
       düzeltmeleri, cep durak katkısı, canlı araç konumu (opsiyonel, KVKK:
-      plaka verisi saklanmamalı).
+      plaka verisi saklanmamalı). Aktarma araması hâlâ durak ID eşitliğine
+      dayanıyor; 100 m yakınlık + isim benzerliğine geçirilebilir.
 
 ## Güvenlik / sırlar (asla commit etme)
 

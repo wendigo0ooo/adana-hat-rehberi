@@ -11,9 +11,12 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
+import android.webkit.ConsoleMessage
 import android.webkit.GeolocationPermissions
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -28,10 +31,14 @@ class MainActivity : AppCompatActivity() {
     private lateinit var webView: WebView
     private var geoOrigin: String? = null
     private var geoCallback: GeolocationPermissions.Callback? = null
+    private var activeManager: LocationManager? = null
+    private var activeListener: LocationListener? = null
 
     private val locationPermission = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { result ->
+        val granted = result[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+            result[Manifest.permission.ACCESS_COARSE_LOCATION] == true
         val callback = geoCallback
         val origin = geoOrigin
         geoCallback = null
@@ -87,9 +94,22 @@ class MainActivity : AppCompatActivity() {
                     else -> true
                 }
             }
+
+            override fun onReceivedError(
+                view: WebView,
+                request: WebResourceRequest,
+                error: WebResourceError
+            ) {
+                Log.e("AdanaWeb", "Yükleme hatası: ${request.url} ${error.description}")
+            }
         }
 
         webView.webChromeClient = object : WebChromeClient() {
+            override fun onConsoleMessage(message: ConsoleMessage): Boolean {
+                Log.d("AdanaJS", "${message.message()} (${message.sourceId()}:${message.lineNumber()})")
+                return true
+            }
+
             override fun onGeolocationPermissionsShowPrompt(
                 origin: String,
                 callback: GeolocationPermissions.Callback
@@ -100,7 +120,7 @@ class MainActivity : AppCompatActivity() {
                 } else {
                     geoOrigin = origin
                     geoCallback = callback
-                    locationPermission.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                    requestLocationPermission()
                 }
             }
         }
@@ -110,15 +130,43 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun hasLocationPermission(): Boolean {
-        return ContextCompat.checkSelfPermission(
+        val fine = ContextCompat.checkSelfPermission(
             this,
             Manifest.permission.ACCESS_FINE_LOCATION
         ) == PackageManager.PERMISSION_GRANTED
+        val coarse = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        return fine || coarse
+    }
+
+    private fun requestLocationPermission() {
+        locationPermission.launch(
+            arrayOf(
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            )
+        )
+    }
+
+    private fun stopLocationUpdates() {
+        val manager = activeManager
+        val listener = activeListener
+        if (manager != null && listener != null) {
+            try {
+                manager.removeUpdates(listener)
+            } catch (e: SecurityException) {
+                Log.w("AdanaLoc", "removeUpdates: ${e.message}")
+            }
+        }
+        activeManager = null
+        activeListener = null
     }
 
     private fun startLocationUpdates() {
         if (!hasLocationPermission()) {
-            locationPermission.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+            requestLocationPermission()
             return
         }
         val manager = getSystemService(LOCATION_SERVICE) as? LocationManager
@@ -127,9 +175,12 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
+        stopLocationUpdates()
         val delivered = AtomicBoolean(false)
+
         fun send(location: Location) {
             if (!delivered.compareAndSet(false, true)) return
+            stopLocationUpdates()
             webView.evaluateJavascript(
                 "window.onNativeLocation && window.onNativeLocation(${location.latitude}, ${location.longitude})",
                 null
@@ -138,27 +189,28 @@ class MainActivity : AppCompatActivity() {
 
         try {
             val now = System.currentTimeMillis()
-            val last = manager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-                ?: manager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-            if (last != null && now - last.time < 300_000L) {
-                send(last)
+            val candidates = listOfNotNull(
+                manager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER),
+                manager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+            ).filter { now - it.time in 0..300_000L }
+            val freshest = candidates.maxByOrNull { it.time }
+            if (freshest != null) {
+                send(freshest)
                 return
             }
 
-            val provider = when {
-                manager.isProviderEnabled(LocationManager.GPS_PROVIDER) -> LocationManager.GPS_PROVIDER
-                manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER) -> LocationManager.NETWORK_PROVIDER
-                else -> null
-            }
-            if (provider == null) {
-                notifyJsError("Konum servisi kapalı görünüyor.")
+            val providers = listOf(
+                LocationManager.NETWORK_PROVIDER,
+                LocationManager.GPS_PROVIDER
+            ).filter { manager.isProviderEnabled(it) }
+            if (providers.isEmpty()) {
+                notifyJsError("Konum servisi kapalı görünüyor. Ayarlardan konumu açın.")
                 return
             }
 
-            manager.requestSingleUpdate(provider, object : LocationListener {
+            val listener = object : LocationListener {
                 override fun onLocationChanged(location: Location) {
                     send(location)
-                    manager.removeUpdates(this)
                 }
 
                 override fun onProviderEnabled(provider: String) {}
@@ -167,17 +219,29 @@ class MainActivity : AppCompatActivity() {
 
                 @Deprecated("Deprecated in Java")
                 override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
-            }, Looper.getMainLooper())
+            }
+            activeManager = manager
+            activeListener = listener
+            providers.forEach { provider ->
+                manager.requestLocationUpdates(provider, 0L, 0f, listener, Looper.getMainLooper())
+            }
         } catch (e: SecurityException) {
+            stopLocationUpdates()
             notifyJsError("Konum izni yok.")
+            return
+        } catch (e: Exception) {
+            stopLocationUpdates()
+            notifyJsError("Konum servisi başlatılamadı.")
+            Log.e("AdanaLoc", "Konum hatası", e)
             return
         }
 
         Handler(Looper.getMainLooper()).postDelayed({
             if (!delivered.get()) {
-                notifyJsError("Konum alınamadı. GPS'i açıp tekrar dene.")
+                stopLocationUpdates()
+                notifyJsError("Konum alınamadı. Açık alanda veya Wi-Fi açıkken tekrar deneyin.")
             }
-        }, 12_000L)
+        }, 20_000L)
     }
 
     private fun notifyJsError(message: String) {
@@ -211,6 +275,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        stopLocationUpdates()
         webView.removeJavascriptInterface("AndroidBridge")
         webView.destroy()
         super.onDestroy()
