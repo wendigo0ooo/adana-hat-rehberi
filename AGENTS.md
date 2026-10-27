@@ -3,6 +3,10 @@
 Bu dosya, sonraki oturumlarda projeyi hatırlamak için tutulur. Yeni kararlar
 alındığında burayı güncelle.
 
+> **Sıradaki işler için `ROADMAP.md` oku.** Öncelik sırası: hafta sonu sefer
+> dürüstlüğü → veri tazeliği/30 Kasım GTFS bitişi → 56 "sınırlı" hattın
+> `data-src/official_routes/` ile doldurulması → yakınlık tabanlı aktarma.
+
 ## Proje
 
 Adana'daki belediye otobüsleri, dolmuş/minibüs hatları ve M1 metro için
