@@ -109,11 +109,78 @@ test("metro hattı", () => {
 
 test("sınırlı hatlar yön bilgisi taşıyor", () => {
   const limited = D.routes.filter((r) => r.limited);
-  assert.ok(limited.length > 20);
+  assert.ok(limited.length > 0);
   limited.forEach((route) => {
     assert.ok(route.dirs.length >= 1);
-    assert.strictEqual(route.dirs[0].stops.length, 0);
+    route.dirs.forEach((dir) => assert.strictEqual(dir.stops.length, 0));
   });
+});
+
+test("kısmi verili hatlar durak ve yaklaşık süre taşıyor", () => {
+  const partial = D.routes.filter((r) => r.partial);
+  assert.ok(partial.length > 20, "kısmi hat sayısı beklenenden az");
+  const sample = partial.find((r) => r.dirs.some((d) => d.stops.length > 2));
+  assert.ok(sample, "durak içeren kısmi hat yok");
+  const dir = sample.dirs.find((d) => d.stops.length > 2);
+  assert.ok(dir.stops.length >= 2);
+  assert.ok(dir.offsets.length === dir.stops.length);
+  for (let i = 1; i < dir.offsets.length; i++) {
+    assert.ok(dir.offsets[i] >= dir.offsets[i - 1], "süreler monoton değil");
+  }
+  assert.ok(dir.offsets[dir.offsets.length - 1] > 0, "yaklaşık süre sıfır");
+});
+
+test("gece seferleri 24:00 sonrasını koruyor", () => {
+  let sample = null;
+  D.routes.forEach((route) => {
+    route.dirs.forEach((dir) => {
+      ["wd", "sa", "su"].forEach((key) => {
+        (dir.dep[key] || []).forEach((t) => {
+          if (!sample && parseInt(t, 10) >= 24) sample = t;
+        });
+      });
+    });
+  });
+  assert.ok(sample, "24:00 sonrası sefer bulunamadı");
+  const shown = global.AdanaTime.displayTime(sample);
+  assert.ok(shown.indexOf("\u207a") >= 0, "24+ saat ertesi gün işareti taşımıyor: " + shown);
+});
+
+test("duyurular yüklendi ve hatlara bağlanıyor", () => {
+  const active = D.activeAnnouncements();
+  assert.ok(active.length > 0, "aktif duyuru yok");
+  const withRoute = active.find((a) => (a.routes || []).length);
+  assert.ok(withRoute, "hat bağlantılı duyuru yok");
+  const code = String(withRoute.routes[0]);
+  assert.ok(D.announcementsFor(code).length > 0, "hat duyurusu eşleşmiyor");
+});
+
+test("yakın duraklar aktarma üretiyor", () => {
+  const metro = D.routes.find((r) => r.mode === "metro");
+  const target = metro.dirs[0].stops[0];
+  const ids = Object.keys(D.stops).filter((id) => D.stops[id][0].toUpperCase().indexOf("KÜÇÜK SAAT") >= 0);
+  assert.ok(ids.length > 1, "KÜÇÜK SAAT durakları yok");
+  const hit = ids.some((id) => {
+    const plan = D.plan(id, target);
+    return plan.direct.length || plan.transfers.length;
+  });
+  assert.ok(hit, "aynı adlı hub durağından metroya yolculuk bulunamadı");
+  let walk = false;
+  ids.slice(0, 5).forEach((id) => {
+    const plan = D.plan(id, target);
+    plan.transfers.forEach((item) => {
+      if (item.walk > 0 || (item.second && item.second.toWalk > 0)) walk = true;
+    });
+  });
+  assert.ok(walk, "yakınlık tabanlı yürüme aktarması üretilmedi");
+});
+
+test("ücretler moda bağlı ve operatör etiketi düzgün", () => {
+  const minibus = D.routes.find((r) => r.mode === "minibus");
+  const fare = D.fareFor(minibus.mode);
+  assert.ok(fare && fare.cash != null);
+  const mislabeled = D.routes.filter((r) => r.mode === "minibus" && /Büyükşehir/.test(r.operator));
+  assert.strictEqual(mislabeled.length, 0, "dolmuş hattı Büyükşehir olarak etiketli");
 });
 
 if (!process.exitCode) console.log("\nTüm veri testleri geçti.");

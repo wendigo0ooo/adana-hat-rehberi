@@ -103,6 +103,12 @@ Gradle 8.7 + aapt2 override gerekir). **Birincil yol CI.**
       tarih kapısı, CI Node 24 / güncel action sürümleri, arama debounce,
       ara JSON'lar `build/data` altına taşındı (APK'ya girmiyor) + 4 MB bütçe,
       kontrast AA ve dokunma hedefleri düzeltildi.
+- [x] Faz 1: 56 "sınırlı" hattın 54'ü resmî durak/geometri/seferle dolduruldu
+      (`dataLevel: full|approx|stops-only|none`, 2 hat gerçekten verisiz).
+      Yakınlık tabanlı aktarma (150 m grid) + yürüme süresi, hub durak grupları,
+      24:00+ seferler (ertesi gün işaretli), Europe/Istanbul sabit saat dilimi,
+      duyurular (63 kayıt, hat bazlı), hat bazlı ücret kartı, dolmuş operatör
+      etiketi düzeltmesi, `fetch_sources.py` + aylık `data.yml` PR akışı.
 - [ ] İleride: GTFS yenileme (2026-11-30 sonrası), dolmuş attribution
       düzeltmeleri, cep durak katkısı, canlı araç konumu (opsiyonel, KVKK:
       plaka verisi saklanmamalı). Aktarma araması hâlâ durak ID eşitliğine

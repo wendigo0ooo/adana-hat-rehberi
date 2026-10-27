@@ -79,7 +79,7 @@ Amaç: yanlış bilgi göstermeyi bırakmak ve 30 Kasım veri bitişine hazırla
 6. **Kontrast + dokunma hedefleri** (A-02/A-03): `--brand #0f766e`,
    `--minibus #b45309`, `--muted #475569`; chip/sekme en az 44 px.
 
-## Faz 1 — Veri doğruluğu ve planlayıcı (≈2-3 hafta)
+## Faz 1 — Veri doğruluğu ve planlayıcı (≈2-3 hafta) — TAMAMLANDI (build 7)
 
 Amaç: uygulamanın "eksik" dediği hatları gerçekten göstermek ve aktarmaları
 düzeltmek.

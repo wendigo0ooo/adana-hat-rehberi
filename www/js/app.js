@@ -226,6 +226,7 @@
     var groups = new Map();
     D.routes.forEach(function (r) {
       if (r.mode !== "minibus") return;
+      if (!r.operator || r.operator.indexOf("Büyükşehir") >= 0) return;
       if (!groups.has(r.operator)) groups.set(r.operator, { name: r.operator, count: 0, sample: r });
       groups.get(r.operator).count += 1;
     });
@@ -279,6 +280,50 @@
       U.esc(info.title) + "</strong><span>" + U.esc(info.text) + "</span></div></div>";
   }
 
+  function routeByCode(code) {
+    var wanted = String(code);
+    for (var i = 0; i < D.routes.length; i++) {
+      if (String(D.routes[i].code) === wanted) return D.routes[i];
+    }
+    return null;
+  }
+
+  function announceCard(item) {
+    var chips = (item.routes || []).map(function (code) {
+      var route = routeByCode(code);
+      if (!route) return '<span class="chip xs">' + U.esc(code) + "</span>";
+      return '<a class="chip xs" href="#/route/' + encodeURIComponent(route.id) + '">' + U.esc(code) + "</a>";
+    }).join("");
+    var range = [item.start, item.end].filter(Boolean).join(" – ");
+    return '<article class="announce">' +
+      '<div class="announce-head"><strong>' + U.esc(item.title) + "</strong>" +
+      (range ? '<span class="announce-date">' + U.esc(range) + "</span>" : "") + "</div>" +
+      (item.text ? '<p class="announce-text">' + U.esc(item.text) + "</p>" : "") +
+      (chips ? '<div class="announce-chips">' + chips + "</div>" : "") +
+      "</article>";
+  }
+
+  function announcementsBlock() {
+    var list = D.activeAnnouncements();
+    if (!list.length) return "";
+    var favCodes = favs().routes.map(function (id) {
+      var route = D.route(id);
+      return route ? String(route.code) : null;
+    }).filter(Boolean);
+    list.sort(function (a, b) {
+      var af = (a.routes || []).some(function (c) { return favCodes.indexOf(String(c)) >= 0; }) ? 1 : 0;
+      var bf = (b.routes || []).some(function (c) { return favCodes.indexOf(String(c)) >= 0; }) ? 1 : 0;
+      if (af !== bf) return bf - af;
+      return String(b.start || "").localeCompare(String(a.start || ""));
+    });
+    var shown = list.slice(0, 3);
+    return '<section class="block"><div class="block-head"><h3>Duyurular</h3><span class="muted">' +
+      list.length + '</span></div><div class="announce-list">' +
+      shown.map(announceCard).join("") + "</div>" +
+      (list.length > shown.length ? '<a class="btn ghost wide" href="#/info">Tüm duyurular</a>' : "") +
+      "</section>";
+  }
+
   function nearbyIntro() {
     return '<div class="nearby-intro"><span class="pin-badge">' + U.icon("locate") + "</span>" +
       "<div><strong>Yakınındaki durakları gör</strong><small>Konum yalnızca cihazında hesaplanır.</small></div></div>";
@@ -318,6 +363,7 @@
       '<section class="block"><div class="block-head"><h3>Yakınımdaki duraklar</h3>' +
       '<button class="btn ghost sm" data-action="locate">' + U.icon("locate") + " Konumumu kullan</button></div>" +
       '<div id="nearbyBox" class="card soft">' + nearbyIntro() + "</div></section>" +
+      announcementsBlock() +
       (popular.length ? '<section class="block"><div class="block-head"><h3>Popüler hatlar</h3></div>' +
         '<div class="route-list">' + popular.map(U.routeCard).join("") + "</div></section>" : "") +
       (state.mode === "all" && operators.length ? '<section class="block"><div class="block-head"><h3>Dolmuş kooperatifleri</h3></div>' +
@@ -458,8 +504,9 @@
     var today = key === D.todayKey();
     var nextIndex = -1;
     if (today) {
-      var now = new Date();
+      var now = window.AdanaTime.now();
       var nowMin = now.getHours() * 60 + now.getMinutes();
+      if (nowMin < 240) nowMin += 1440;
       for (var i = 0; i < dep.length; i++) {
         if (window.AdanaTime.minutesOf(dep[i]) >= nowMin) { nextIndex = i; break; }
       }
@@ -471,9 +518,12 @@
           d[0] + '">' + d[1] + "</button>";
       }).join("") + "</div>" +
       '<div class="time-grid">' + (dep.length ? dep.map(function (t, i) {
-        return '<span class="time ' + (i === nextIndex ? "next" : "") + '">' + t + "</span>";
+        return '<span class="time ' + (i === nextIndex ? "next" : "") + '">' +
+          window.AdanaTime.displayTime(t) + "</span>";
       }).join("") : '<p class="empty">Bu gün için sefer bilgisi yok.</p>') + "</div>" +
-      '<p class="hint">Saatler hattın ilk durağından kalkış saatleridir. Sonraki duraklar için aşağıdaki süreleri ekleyin.</p></div>';
+      '<p class="hint">' + (dir.dataLevel === "full"
+        ? "Saatler hattın ilk durağından kalkış saatleridir. Sonraki duraklar için aşağıdaki süreleri ekleyin."
+        : "Saatler kalkış durağından alınmıştır; ara duraklar için süreler yaklaşıktır.") + "</p></div>";
   }
 
   function stopsTimeline(dir) {
@@ -483,8 +533,9 @@
     var base = hasService ? dep[0] : null;
     var baseLabel = "İlk sefer";
     if (hasService && key === D.todayKey()) {
-      var now = new Date();
+      var now = window.AdanaTime.now();
       var nowMin = now.getHours() * 60 + now.getMinutes();
+      if (nowMin < 240) nowMin += 1440;
       var next = -1;
       for (var n = 0; n < dep.length; n++) {
         if (window.AdanaTime.minutesOf(dep[n]) >= nowMin) { next = n; break; }
@@ -495,13 +546,15 @@
     var lastIndex = dir.stops.length - 1;
 
     var head = hasService
-      ? '<p class="hint timeline-hint">Süreler kalkış durağına göre yaklaşık varış saatleridir.</p>'
+      ? '<p class="hint timeline-hint">' + (dir.dataLevel === "full"
+          ? "Süreler kalkış durağına göre yaklaşık varış saatleridir."
+          : "Varış saatleri durak mesafelerinden yaklaşık hesaplanmıştır.") + "</p>"
       : '<div class="notice warn compact">' + U.icon("info") + "<div><strong>" +
         U.esc(D.dayLabel(key)) + " için sefer bilgisi yok</strong><span>Bu hat için " +
         U.esc(D.dayLabel(key).toLowerCase()) + " seferi yayımlanmamış. Durak sırası yine de gösteriliyor.</span></div></div>";
 
     return '<div class="card" id="timelineCard"><div class="card-head"><h3>Duraklar</h3><span class="muted">' +
-      dir.stops.length + " durak" + (base ? " · " + baseLabel + " " + base : "") +
+      dir.stops.length + " durak" + (base ? " · " + baseLabel + " " + window.AdanaTime.displayTime(base) : "") +
       "</span></div>" + head + "<ol class=\"stop-timeline\">" +
       dir.stops.map(function (sid, i) {
         var stop = D.stop(sid);
@@ -552,8 +605,8 @@
     if (!stats) return "";
     if (stats.hasService) {
       return '<div class="card stats-grid" id="statsCard">' +
-        stat("İlk sefer", stats.first || "—", D.dayLabel(stats.dayKey)) +
-        stat("Son sefer", stats.last || "—", D.dayLabel(stats.dayKey)) +
+        stat("İlk sefer", window.AdanaTime.displayTime(stats.first) || "—", D.dayLabel(stats.dayKey)) +
+        stat("Son sefer", window.AdanaTime.displayTime(stats.last) || "—", D.dayLabel(stats.dayKey)) +
         stat("Sıklık", stats.headway ? "~" + stats.headway + " dk" : "—", "hafta içi") +
         stat("Süre", stats.duration != null ? "~" + stats.duration + " dk" : "—", stats.km ? stats.km + " km" : "") +
         "</div>";
@@ -569,7 +622,8 @@
   function routeHero(route) {
     return '<div class="route-hero m-' + route.mode + '">' +
       '<div class="hero-line">' + U.badge(route, "lg") + U.modePill(route.mode) +
-      (route.limited ? '<span class="tag tag-limited">Sınırlı veri</span>' : "") + "</div>" +
+      (route.limited ? '<span class="tag tag-limited">Sınırlı veri</span>' :
+        (route.partial ? '<span class="tag tag-limited">Kısmi veri</span>' : "")) + "</div>" +
       "<h2>" + U.esc(route.name) + "</h2>" +
       '<p class="operator">' + U.esc(route.operator) + "</p></div>";
   }
@@ -611,6 +665,22 @@
 
     if (dir && dir.stops && dir.stops.length) body += boardingCard(dir);
 
+    var routeAnns = D.announcementsFor(r.code).slice(0, 2);
+    if (routeAnns.length) {
+      body += routeAnns.map(function (item) {
+        return '<div class="notice warn">' + U.icon("info") + "<div><strong>" +
+          U.esc(item.title) + "</strong><span>" + U.esc(item.text) + "</span></div></div>";
+      }).join("");
+    }
+
+    if (dir && dir.dataLevel && dir.dataLevel !== "full") {
+      body += '<div class="notice">' + U.icon("info") + "<div><strong>Kısmi veri</strong><span>" +
+        (dir.dataLevel === "approx"
+          ? "Duraklar ve güzergah resmî kaynaktan alınmıştır. Sefer saatleri yalnızca kalkış durağı için geçerlidir; varış süreleri durak mesafelerinden yaklaşık hesaplanır."
+          : "Duraklar ve güzergah resmî kaynaktan alınmıştır; bu yön için sefer saati yayımlanmamış.") +
+        "</span></div></div>";
+    }
+
     if (r.limited) {
       body += '<div class="notice">' + U.icon("info") +
         "<div><strong>Bu hat için detay verisi yok</strong><span>Resmî listede hat ve yön bilgisi var; durak ve sefer saatleri yayımlanmamış. Güncel bilgi için resmî kanalları kontrol edin.</span></div></div>" +
@@ -632,6 +702,7 @@
 
     if (dir && dir.stops.length) {
       body += statsCard(r, dir);
+      body += fareCard(r);
     }
 
     if (dir && dir.shape && dir.shape.length > 1) {
@@ -665,6 +736,21 @@
   function stat(label, value, sub) {
     return '<div class="stat"><span>' + U.esc(label) + "</span><strong>" + U.esc(value) + "</strong>" +
       (sub ? '<small>' + U.esc(sub) + "</small>" : "") + "</div>";
+  }
+
+  function fareCard(route) {
+    var fare = D.fareFor(route.mode);
+    if (!fare) return "";
+    function cell(label, value) {
+      return '<div class="fare-cell"><span>' + U.esc(label) + "</span><strong>" +
+        (value == null ? "—" : value + " ₺") + "</strong></div>";
+    }
+    return '<div class="card fare-mini"><div class="card-head"><h3>Ücret</h3><span class="muted">' +
+      U.esc(fare.validFrom || "") + '</span></div><div class="fare-cells">' +
+      cell("Kart", fare.card) + cell("Öğrenci", fare.student) + cell("Nakit", fare.cash) +
+      '</div><p class="hint">' + U.esc(fare.label || "") +
+      (fare.cash == null ? " · nakit kabul edilmiyor" : "") +
+      (fare.source ? " · Kaynak: " + U.esc(fare.source) : "") + "</p></div>";
   }
 
   function sourceNote() {
@@ -781,6 +867,7 @@
       kv("Durak", (c.stops || 0) + " durak") +
       kv("Yön / varyant", (c.directions || 0)) +
       (c.limited ? kv("Sınırlı veri", c.limited + " hat (yalnız yön)") : "") +
+      (c.partial ? kv("Kısmi veri", c.partial + " hat (yaklaşık süre)") : "") +
       (feed.validFrom ? kv("Tarife geçerliliği", feed.validFrom + " → " + feed.validUntil) : "") +
       "</div></section>";
 
@@ -791,6 +878,12 @@
           "</small></td><td>" + fareCell(f.card) + "</td><td>" + fareCell(f.student) + "</td><td>" + fareCell(f.cash) + "</td></tr>";
       }).join("") + "</tbody></table><p class=\"hint\">" +
       U.esc(meta.faresNote || "Ücretler bilgi amaçlıdır; güncel tarife UKOME tarafından belirlenir.") + "</p></div></section>";
+
+    var allAnn = D.activeAnnouncements();
+    if (allAnn.length) {
+      html += '<section class="info-section"><h3>Duyurular</h3><div class="announce-list">' +
+        allAnn.map(announceCard).join("") + "</div></section>";
+    }
 
     html += '<section class="info-section"><h3>Kaynaklar</h3><div class="card source-list">' +
       (meta.sources || []).map(function (s) { return "<p>" + U.icon("info", "ic-xs") + U.esc(s) + "</p>"; }).join("") +

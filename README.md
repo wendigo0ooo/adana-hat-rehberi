@@ -60,6 +60,18 @@ python3 tools/make_icons.py
 npm test
 ```
 
+Veriyi sıfırdan üretmek için:
+
+```bash
+python3 tools/fetch_sources.py            # GTFS + ABB hat/durak/metro
+python3 tools/fetch_official_limited.py   # resmî hat durak/geometri/sefer
+python3 tools/fetch_announcements.py      # ek servis / güzergah duyuruları
+python3 tools/build_data.py               # www/data/network.js
+```
+
+`.github/workflows/data.yml` bu akışı ayda bir çalıştırır, testleri geçirir ve
+değişiklik varsa PR açar (otomatik merge yoktur).
+
 `build_data.py`, `data-src/` altındaki GTFS ve resmî API yanıtlarını okur;
 uygulamanın kullandığı `www/data/network.js` dosyasını ve yalnızca yerel
 denetim için `build/data/*.json` ara dosyalarını üretir. Ara JSON'lar APK'ya

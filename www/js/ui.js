@@ -57,14 +57,16 @@
     if (route.limited) return "Yön bilgisi var · sefer/durak verisi yok";
     var dir = route.dirs[0];
     var count = dir ? dir.stops.length : 0;
-    return modeLabel(route.mode) + " · " + count + " durak · " + (route.dirs.length > 1 ? "çift yön" : "tek yön");
+    return modeLabel(route.mode) + " · " + count + " durak · " +
+      (route.dirs.length > 1 ? "çift yön" : "tek yön") + (route.partial ? " · kısmi" : "");
   }
 
   function routeCard(route) {
     return '<a class="route-card" href="#/route/' + encodeURIComponent(route.id) + '">' +
       badge(route) +
       '<div class="rc-main"><strong>' + esc(route.name) + "</strong><small>" + esc(routeMeta(route)) + "</small></div>" +
-      (route.limited ? '<span class="tag tag-limited">Sınırlı</span>' : "") +
+      (route.limited ? '<span class="tag tag-limited">Sınırlı</span>' :
+        (route.partial ? '<span class="tag tag-limited">Kısmi</span>' : "")) +
       icon("chevron", "chev") +
       "</a>";
   }
@@ -75,6 +77,7 @@
     if (opts.codes && opts.codes.length) sub.push(opts.codes.join(" · "));
     else if (opts.lines != null) sub.push(opts.lines + " hat");
     if (stop.dist != null) sub.push(formatDistance(stop.dist));
+    if (stop.same > 1) sub.push(stop.same + " aynı adlı durak");
     if (stop.kind === 1) sub.push("Metro istasyonu");
     return '<a class="stop-row" href="#/stop/' + encodeURIComponent(stop.id) + '">' +
       '<span class="stop-icon">' + icon(stop.kind === 1 ? "metro" : "pin") + "</span>" +
@@ -97,30 +100,36 @@
       "Yön: " + esc(item.dir.heads) + "</small></div></div>" +
       '<div class="j-meta">' + icon("pin", "ic-xs") + " Bin: " + stopLink(fromId, global.AdanaData.stopName(fromId)) +
       " · İn: " + stopLink(toId, global.AdanaData.stopName(toId)) +
+      (item.toWalk ? " · ~" + item.toWalk + " m yürü" : "") +
       " · " + item.stops + " durak · ~" + item.wait + " dk bekleme</div>" +
       "</div></div>";
   }
 
   function journeyTransfer(item) {
     var fromId = item.first.dir.stops[item.first.fromIdx];
-    var transferId = item.transfer;
+    var alightId = item.transfer;
+    var boardId = item.board || item.transfer;
     var toId = item.second.dir.stops[item.second.toIdx];
     var fromName = global.AdanaData.stopName(fromId);
-    var transferName = global.AdanaData.stopName(transferId);
+    var alightName = global.AdanaData.stopName(alightId);
+    var boardName = global.AdanaData.stopName(boardId);
     var toName = global.AdanaData.stopName(toId);
+    var walking = boardId !== alightId
+      ? "İn: " + stopLink(alightId, alightName) + " · ~" + (item.walk || 0) + " m yürü · Bin: " + stopLink(boardId, boardName)
+      : "Aktarma: " + stopLink(alightId, alightName) + " · burada inip diğer araca bin";
     return '<div class="journey journey-transfer">' +
       '<div class="j-time"><strong>' + item.mins + '</strong><span>dk</span></div>' +
       '<div class="j-body">' +
       '<div class="leg">' + badge(item.first.route) + '<div class="leg-main"><strong>' + esc(item.first.route.name) +
       "</strong><small>Yön: " + esc(item.first.dir.heads) + "</small></div></div>" +
       '<div class="j-meta">' + icon("pin", "ic-xs") + " Bin: " + stopLink(fromId, fromName) +
-      " → İn: " + stopLink(transferId, transferName) + "</div>" +
-      '<div class="transfer-line">' + icon("transfer", "ic-xs") + " Aktarma: <strong>" + esc(transferName) +
-      "</strong> · burada inip diğer araca bin</div>" +
+      " → İn: " + stopLink(alightId, alightName) + "</div>" +
+      '<div class="transfer-line">' + icon("transfer", "ic-xs") + " " + walking + "</div>" +
       '<div class="leg">' + badge(item.second.route) + '<div class="leg-main"><strong>' + esc(item.second.route.name) +
       "</strong><small>Yön: " + esc(item.second.dir.heads) + "</small></div></div>" +
-      '<div class="j-meta">' + icon("pin", "ic-xs") + " Bin: " + stopLink(transferId, transferName) +
-      " → İn: " + stopLink(toId, toName) + "</div>" +
+      '<div class="j-meta">' + icon("pin", "ic-xs") + " Bin: " + stopLink(boardId, boardName) +
+      " → İn: " + stopLink(toId, toName) +
+      (item.second.toWalk ? " · ~" + item.second.toWalk + " m yürü" : "") + "</div>" +
       "</div></div>";
   }
 

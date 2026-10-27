@@ -129,6 +129,7 @@ const boardCard = document.querySelector(".boarding-card");
 ok(!!boardCard && boardCard.textContent.indexOf("Kalkış durağı") >= 0, "kalkış durağı bilgisi gösterildi");
 ok(!!boardCard && boardCard.textContent.indexOf("Varış durağı") >= 0, "varış durağı bilgisi gösterildi");
 ok(!!document.querySelector(".stop-tag.tag-start"), "ilk durak kalkış olarak işaretlendi");
+ok(!!document.querySelector(".fare-mini"), "hat ücreti gösterildi");
 document.querySelector('.day-tab[data-key="su"]').click();
 ok(document.querySelectorAll(".time").length === 0, "pazar günü sefer yok uyarısı");
 ok(!document.querySelector(".stats-grid"), "pazar günü sahte istatistik gösterilmiyor");
@@ -166,12 +167,29 @@ ok((saved.routes || []).indexOf("00114") >= 0, "favoriye ekleme");
 navigate("#/favorites");
 ok(!!document.querySelector('.route-list a[href*="00114"]'), "favoriler sayfasında hat var");
 
+const annCount = window.AdanaData.activeAnnouncements().length;
+navigate("#/");
+ok(annCount === 0 || !!document.querySelector(".announce"), "duyurular ana sayfada görünüyor");
+
 navigate("#/info");
 ok(document.querySelectorAll(".fare-table tbody tr").length >= 4, "ücret tablosu");
+ok(annCount === 0 || document.querySelectorAll(".announce").length > 0, "duyurular bilgi sayfasında");
 ok(document.body.textContent.indexOf("M1") >= 0, "metro bilgisi");
 
-navigate("#/route/official-105/0");
-ok(document.body.textContent.indexOf("Sınırlı veri") >= 0, "sınırlı hat uyarısı");
+const limitedRoute = window.AdanaData.routes.find((r) => r.limited);
+ok(!!limitedRoute, "sınırlı hat bulundu");
+if (limitedRoute) {
+  navigate("#/route/" + encodeURIComponent(limitedRoute.id) + "/0");
+  ok(document.body.textContent.indexOf("Sınırlı veri") >= 0, "sınırlı hat uyarısı");
+}
+const partialRoute = window.AdanaData.routes.find((r) => r.partial && r.dirs.some((d) => d.stops.length > 2));
+ok(!!partialRoute, "kısmi hat bulundu");
+if (partialRoute) {
+  navigate("#/route/" + encodeURIComponent(partialRoute.id) + "/0");
+  ok(document.body.textContent.indexOf("Kısmi veri") >= 0, "kısmi veri uyarısı");
+  ok(document.querySelectorAll(".stop-timeline li").length > 2, "kısmi hatta durak listesi var");
+  ok(!!document.querySelector(".boarding-card"), "kısmi hatta kalkış bilgisi var");
+}
 
 navigate("#/");
 window.onNativeLocation(37.0004, 35.3212);

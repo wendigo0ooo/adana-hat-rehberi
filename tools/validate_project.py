@@ -39,7 +39,7 @@ def load_network():
 
 
 def valid_time(value):
-    return bool(re.match(r"^([01]\d|2[0-3]):[0-5]\d$", value))
+    return bool(re.match(r"^([01]\d|2[0-8]):[0-5]\d$", value))
 
 
 def validate_data(data):
@@ -67,12 +67,20 @@ def validate_data(data):
             offsets = direction["offsets"]
             check(len(path) == len(offsets), "%s yön %s: durak/süre uzunluğu farklı" %
                   (route["code"], direction["d"]))
+            level = direction.get("dataLevel", "full")
+            check(level in ("full", "approx", "stops-only", "none"),
+                  "%s yön %s: geçersiz dataLevel %r" % (route["code"], direction["d"], level))
             if route.get("limited"):
                 check(not path, "%s sınırlı hat durak içermemeli" % route["code"])
                 continue
-            full_dirs += 1
+            if level == "none":
+                check(not path, "%s yön %s: dataLevel none ama durak var" % (route["code"], direction["d"]))
+                continue
+            if level == "full":
+                full_dirs += 1
             check(len(path) >= 2, "%s yön %s: en az 2 durak gerekli" % (route["code"], direction["d"]))
-            check(len(direction["shape"]) >= 2, "%s yön %s: şekil eksik" % (route["code"], direction["d"]))
+            if level in ("full", "approx"):
+                check(len(direction["shape"]) >= 2, "%s yön %s: şekil eksik" % (route["code"], direction["d"]))
             for sid in path:
                 check(sid in stops, "%s bilinmeyen durak kullanıyor: %s" % (route["code"], sid))
             for lat, lon in direction["shape"]:

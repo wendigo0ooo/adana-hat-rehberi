@@ -89,7 +89,8 @@ def minutes(value):
 
 
 def hhmm(total):
-    total %= 24 * 60
+    if total < 0:
+        total = 0
     return "%02d:%02d" % (total // 60, total % 60)
 
 
@@ -131,6 +132,30 @@ def simplify(points, tolerance=0.00012):
     return [p for p, k in zip(points, keep) if k]
 
 
+def load_calendar():
+    services = {}
+    starts = []
+    ends = []
+    for row in rows("calendar.txt"):
+        starts.append(row["start_date"])
+        ends.append(row["end_date"])
+        weekday = all(row[day] == "1" for day in ("monday", "tuesday", "wednesday", "thursday", "friday"))
+        if row["saturday"] == "1" and not weekday:
+            key = "sa"
+        elif row["sunday"] == "1" and not weekday:
+            key = "su"
+        else:
+            key = "wd"
+        services[row["service_id"]] = key
+
+    def fmt(value):
+        return "%s-%s-%s" % (value[:4], value[4:6], value[6:8])
+
+    valid_from = fmt(min(starts)) if starts else FEED_VALID_FROM
+    valid_until = fmt(max(ends)) if ends else FEED_VALID_UNTIL
+    return services, valid_from, valid_until
+
+
 def mode_for(code):
     return "minibus" if len(code) == 5 else "bus"
 
@@ -166,6 +191,7 @@ def load():
 
 def build_routes():
     routes, stops, groups, shapes, stop_times, active = load()
+    services, _, _ = load_calendar()
     out = []
     used_stops = set()
 
@@ -207,9 +233,8 @@ def build_routes():
                 distance += haversine(a, b)
 
             departures = {"wd": [], "sa": [], "su": []}
-            service_key = {"service_1_MTWTFss": "wd", "service_2_mtwtfSs": "sa", "service_3_mtwtfsS": "su"}
             for t in candidates:
-                key = service_key.get(t["service_id"])
+                key = services.get(t["service_id"])
                 if key:
                     departures[key].append(hhmm(stop_times[t["trip_id"]][0][3]))
             for key in departures:
@@ -225,19 +250,23 @@ def build_routes():
                     "shape": shape,
                     "km": round(distance / 1000, 1),
                     "dep": departures,
+                    "dataLevel": "full",
                 }
             )
 
         if not directions:
             continue
 
+        operator = OPERATOR_BY_AGENCY.get(agency, "Adana BB - Otobüs")
+        if mode == "minibus" and agency == "1":
+            operator = "Diğer dolmuş kooperatifi"
         out.append(
             {
                 "id": route_id,
                 "code": code,
                 "name": info["route_long_name"].strip(),
                 "agency": agency,
-                "operator": OPERATOR_BY_AGENCY.get(agency, "Adana BB - Otobüs"),
+                "operator": operator,
                 "mode": mode,
                 "dirs": directions,
             }
@@ -323,6 +352,26 @@ def official_departures(detail, first_stop):
     return out
 
 
+def synthesize_offsets(path, stop_data, speed_kmh=18.0):
+    """Resmî API'de varış süresi yok; durak koordinatlarından yaklaşık süre üretir."""
+    if not path:
+        return []
+    offsets = [0]
+    total_km = 0.0
+    prev = stop_data.get(path[0])
+    for sid in path[1:]:
+        current = stop_data.get(sid)
+        if prev and current:
+            total_km += haversine((prev[1], prev[2]), (current[1], current[2])) / 1000.0
+        offsets.append(int(round(total_km / speed_kmh * 60)))
+        prev = current or prev
+    # monotonik ve en az 1 dk/durak (çok kısa aralıklarda 0 birikmesin)
+    for i in range(1, len(offsets)):
+        if offsets[i] <= offsets[i - 1]:
+            offsets[i] = offsets[i - 1] + 1
+    return offsets
+
+
 def add_official_limited(routes, stop_data):
     buses_path = os.path.join(SRC, "buses.json")
     stops_path = os.path.join(SRC, "official_stops.json")
@@ -366,19 +415,25 @@ def add_official_limited(routes, stop_data):
                 start = stop_data[path[0]][0]
             if path and path[-1] in stop_data:
                 end = stop_data[path[-1]][0]
+            level = "none"
+            if path:
+                level = "approx" if any(dep.values()) else "stops-only"
+            offsets = synthesize_offsets(path, stop_data) if path else []
             dirs.append(
                 {
                     "d": int(rec["Direction"]),
                     "heads": "%s → %s" % (start, end),
                     "stops": path,
-                    "offsets": [0] * len(path),
+                    "offsets": offsets,
                     "shape": shape,
                     "km": km,
                     "dep": dep,
-                    "limited": True,
+                    "dataLevel": level,
                 }
             )
         name = Counter(r["Name"] for r in recs).most_common(1)[0][0]
+        has_detail = any(d["dataLevel"] != "none" for d in dirs)
+        partial = has_detail and any(d["dataLevel"] != "full" for d in dirs)
         routes.append(
             {
                 "id": "official-%s" % code,
@@ -387,7 +442,8 @@ def add_official_limited(routes, stop_data):
                 "agency": "official",
                 "operator": "Büyükşehir / ÖHO",
                 "mode": "bus",
-                "limited": True,
+                "limited": not has_detail,
+                "partial": partial,
                 "dirs": dirs,
             }
         )
@@ -460,6 +516,7 @@ def build_metro(stop_data):
                 "shape": [[round(float(by_seq[seq]["Lat"]), 5), round(float(by_seq[seq]["Lon"]), 5)] for seq in seqs],
                 "km": 13.5,
                 "dep": dep,
+                "dataLevel": "full",
             }
         )
 
@@ -475,10 +532,30 @@ def build_metro(stop_data):
     return route, station_objs
 
 
+def load_announcements():
+    path = os.path.join(SRC, "announcements.json")
+    if not os.path.exists(path):
+        return []
+    try:
+        raw = json.load(open(path, encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    today = datetime.date.today().isoformat()
+    active = []
+    for item in raw:
+        end = item.get("end") or ""
+        if end and end < today:
+            continue
+        active.append(item)
+    return active
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     os.makedirs(OUT_META, exist_ok=True)
     routes, stop_data = build_routes()
+    _, feed_from, feed_until = load_calendar()
+    announcements = load_announcements()
     metro, stations = build_metro(stop_data)
     routes.append(metro)
     limited = add_official_limited(routes, stop_data)
@@ -492,8 +569,8 @@ def main():
         "generated": datetime.date.today().isoformat(),
         "feed": {
             "name": "KentKart türevi community GTFS (Egezenn/kk-gtfs)",
-            "validFrom": FEED_VALID_FROM,
-            "validUntil": FEED_VALID_UNTIL,
+            "validFrom": feed_from,
+            "validUntil": feed_until,
             "license": "CC0 1.0 (derleme); kaynak veri KentKart/Adana BB",
             "url": FEED_URL,
         },
@@ -504,6 +581,8 @@ def main():
             "minibus": sum(1 for r in routes if r["mode"] == "minibus"),
             "metro": sum(1 for r in routes if r["mode"] == "metro"),
             "limited": sum(1 for r in routes if r.get("limited")),
+            "partial": sum(1 for r in routes if r.get("partial")),
+            "announcements": len(announcements),
             "stops": stops_count,
             "directions": dir_count,
             "metros": len(stations),
@@ -515,9 +594,10 @@ def main():
             "Adana Ulaşım resmî web API'si (metro istasyon/sefer, sınırlı hat durak/şekil ve kalkış bilgisi)",
             "OpenStreetMap katkıcıları - harita döşemeleri (ODbL)",
         ],
-        "limitedNote": "Sınırlı hatlarda durak listesi ve güzergah şekli resmî API'den alınır. "
-                       "Sefer saatleri yalnızca kalkış durağı için ve kısmi olabilir; bu hatlar "
-                       "yolculuk planlamasına dahil edilmez.",
+        "limitedNote": "Sınırlı hatlarda hiçbir durak/sefer verisi yayımlanmamıştır. "
+                       "Kısmi verili hatlarda durak listesi ve güzergah resmî API'den alınır; "
+                       "sefer saatleri yalnızca kalkış durağı için, varış süreleri ise mesafeden "
+                       "yaklaşık hesaplanır.",
         "disclaimer": "Bu uygulama resmî değildir. Veriler KentKart türevi GTFS ve Adana Ulaşım "
                       "kaynaklarından derlenmiştir; sefer saatleri ve ücretler değişebilir. "
                       "Yolculuk öncesi güncel bilgiyi resmî kanallardan doğrulayın.",
@@ -529,13 +609,13 @@ def main():
         json.dump(stop_data, fh, ensure_ascii=False, separators=(",", ":"))
     with open(os.path.join(OUT_META, "meta.json"), "w", encoding="utf-8") as fh:
         json.dump(meta, fh, ensure_ascii=False, indent=2)
-    network = {"meta": meta, "routes": routes, "stops": stop_data}
+    network = {"meta": meta, "routes": routes, "stops": stop_data, "announcements": announcements}
     with open(os.path.join(OUT, "network.js"), "w", encoding="utf-8") as fh:
         fh.write("window.ADANA_DATA=")
         json.dump(network, fh, ensure_ascii=False, separators=(",", ":"))
         fh.write(";\n")
 
-    print("routes:", len(routes), "dirs:", dir_count, "stops:", stops_count)
+    print("routes:", len(routes), "dirs:", dir_count, "stops:", stops_count, "announcements:", len(announcements))
     for name in ("routes.json", "stops.json", "meta.json"):
         size = os.path.getsize(os.path.join(OUT_META, name))
         print(name, "%.1f KB" % (size / 1024))

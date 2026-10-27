@@ -804,3 +804,18 @@ body.detail .toast { bottom: calc(24px + env(safe-area-inset-bottom, 0px)); }
 .notice.error .ic { color: var(--danger); }
 .notice.compact { margin: 8px 0 4px; padding: 10px 12px; }
 :focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+.announce-list { display: flex; flex-direction: column; gap: 8px; }
+.announce { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; box-shadow: var(--shadow); }
+.announce-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.announce-head strong { font-size: 13px; line-height: 1.35; }
+.announce-date { flex: 0 0 auto; font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.announce-text { margin-top: 5px; font-size: 12px; color: var(--muted); line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.announce-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.chip.xs { min-height: 30px; padding: 4px 10px; font-size: 11px; }
+
+.fare-mini { margin-top: 12px; }
+.fare-cells { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 4px; }
+.fare-cell { background: var(--bg2); border-radius: 10px; padding: 8px 10px; }
+.fare-cell span { display: block; font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+.fare-cell strong { font-size: 15px; font-variant-numeric: tabular-nums; }

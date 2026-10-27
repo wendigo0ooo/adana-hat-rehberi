@@ -1,0 +1,83 @@
+name: Veri güncelle
+
+on:
+  schedule:
+    - cron: "0 4 1 * *"
+  workflow_dispatch:
+
+concurrency:
+  group: data-refresh
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Bağımlılıklar
+        run: npm ci
+
+      - name: Kaynakları indir
+        run: |
+          python3 tools/fetch_sources.py
+          python3 tools/fetch_official_limited.py
+          python3 tools/fetch_announcements.py
+
+      - name: Veriyi üret
+        run: python3 tools/build_data.py
+
+      - name: Eşik kontrolü
+        run: |
+          python3 - <<'PY'
+          import json
+          raw = open("www/data/network.js", encoding="utf-8").read().strip()
+          data = json.loads(raw[len("window.ADANA_DATA="):].rstrip(";"))
+          counts = data["meta"]["counts"]
+          assert counts["routes"] >= 180, counts
+          assert counts["stops"] >= 5000, counts
+          assert counts["directions"] >= 320, counts
+          print("Sayımlar:", counts)
+          PY
+
+      - name: Testler
+        run: npm test
+
+      - name: Değişiklik varsa PR aç
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if git diff --quiet -- www/data/network.js; then
+            echo "Veri değişmedi."
+            exit 0
+          fi
+          branch="data/refresh-$(date +%Y%m%d)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add www/data/network.js
+          git commit -m "data: otomatik veri güncellemesi ($(date +%Y-%m-%d))"
+          git push origin "$branch"
+          gh pr create \
+            --base main \
+            --head "$branch" \
+            --title "Veri güncellemesi $(date +%Y-%m-%d)" \
+            --body "Otomatik veri yenileme. Kaynaklar: kk-gtfs adana.zip, ABB /api/buses, /api/stops, /api/metro, duyurular. Testler ve eşik kontrolü geçti. Otomatik merge edilmez; diff'i inceleyip birleştir." \
+            || echo "PR zaten açık olabilir."
