@@ -1,0 +1,23 @@
+# Ham veri ve üretilen JSON'lar (network.js hariç)
+data-src/
+www/data/*.json
+
+# Android / Gradle
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+*.iml
+.idea/
+
+# Node / test
+node_modules/
+npm-debug.log*
+
+# Sırlar
+*.jks
+*.keystore
+credentials.txt
+
+# İşletim sistemi
+.DS_Store

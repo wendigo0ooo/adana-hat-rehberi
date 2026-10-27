@@ -1,0 +1,15 @@
+{
+  "name": "adana-hat-rehberi",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Adana otobüs, dolmuş ve M1 metro güzergah rehberi",
+  "scripts": {
+    "validate": "python3 tools/validate_project.py",
+    "test:data": "node tools/test_data.js",
+    "test:ui": "node tools/smoke_test.js",
+    "test": "npm run validate && npm run test:data && npm run test:ui"
+  },
+  "devDependencies": {
+    "jsdom": "^24.1.3"
+  }
+}
