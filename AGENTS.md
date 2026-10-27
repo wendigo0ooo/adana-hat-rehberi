@@ -72,6 +72,9 @@ Gradle 8.7 + aapt2 override gerekir). **Birincil yol CI.**
 - [x] Testler yeşil (Pazar sekmesi testi tarih bağımlıydı, düzeltildi).
 - [x] GitHub deposu açıldı, ilk commit atıldı, CI APK üretiyor.
 - [x] Dedicated release keystore üretildi ve repo secret'larına eklendi.
+- [x] İlk sürüm yayınlandı: `v1.0-build1`
+      https://github.com/wendigo0ooo/adana-hat-rehberi/releases/tag/v1.0-build1
+      Release APK imzası `apksigner` ile doğrulandı (V2, CN=Adana Hat Rehberi).
 - [ ] İleride: GTFS yenileme (2026-11-30 sonrası), dolmuş attribution
       düzeltmeleri, cep durak katkısı, canlı araç konumu (opsiyonel, KVKK:
       plaka verisi saklanmamalı).
