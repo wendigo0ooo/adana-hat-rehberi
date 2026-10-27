@@ -24,3 +24,7 @@ credentials.txt
 
 # Yerel veri üretim çıktıları
 build/
+
+# Python
+__pycache__/
+*.pyc
